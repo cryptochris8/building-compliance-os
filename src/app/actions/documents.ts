@@ -1,0 +1,99 @@
+'use server';
+
+import { z } from 'zod';
+import { db } from '@/lib/db';
+import { documents } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
+import { createClient } from '@/lib/supabase/server';
+
+// ============================================================
+// Zod Validation Schema for Document Upload
+// ============================================================
+
+export const documentFormSchema = z.object({
+  buildingId: z.string().min(1, 'Building ID is required'),
+  fileName: z.string().min(1, 'File name is required'),
+  fileType: z.string().min(1, 'File type is required'),
+  fileSizeBytes: z.coerce.number().min(0).max(10 * 1024 * 1024, 'File must be under 10MB'),
+  documentType: z.enum(['utility_bill', 'compliance_report', 'deduction_form', 'other']).default('other'),
+  complianceYear: z.string().optional(),
+});
+
+export type DocumentFormValues = z.infer<typeof documentFormSchema>;
+
+// ============================================================
+// Helper: Get authenticated user
+// ============================================================
+
+async function getAuthUser() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
+
+// ============================================================
+// Upload Document (create metadata record)
+// ============================================================
+
+export async function uploadDocument(formData: DocumentFormValues) {
+  const user = await getAuthUser();
+  if (!user) {
+    return { error: 'Unauthorized' };
+  }
+
+  const validated = documentFormSchema.safeParse(formData);
+  if (!validated.success) {
+    return { error: 'Validation failed', details: validated.error.flatten() };
+  }
+
+  const data = validated.data;
+
+  try {
+    // TODO: Upload file to Supabase Storage and get real file path
+    // For now, store a placeholder path with metadata
+    const placeholderPath = `documents/${data.buildingId}/${Date.now()}-${data.fileName}`;
+
+    const [document] = await db
+      .insert(documents)
+      .values({
+        buildingId: data.buildingId,
+        fileName: data.fileName,
+        fileType: data.fileType,
+        filePath: placeholderPath,
+        fileSizeBytes: data.fileSizeBytes,
+        documentType: data.documentType,
+        uploadedBy: user.id,
+        // TODO: Link to compliance year if provided
+        // complianceYearId: data.complianceYear || null,
+      })
+      .returning();
+
+    revalidatePath(`/buildings/${data.buildingId}/documents`);
+    return { success: true, document };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to upload document';
+    return { error: message };
+  }
+}
+
+// ============================================================
+// Delete Document
+// ============================================================
+
+export async function deleteDocument(id: string, buildingId: string) {
+  const user = await getAuthUser();
+  if (!user) {
+    return { error: 'Unauthorized' };
+  }
+
+  try {
+    // TODO: Delete file from Supabase Storage as well
+    await db.delete(documents).where(eq(documents.id, id));
+    revalidatePath(`/buildings/${buildingId}/documents`);
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete document';
+    return { error: message };
+  }
+}
