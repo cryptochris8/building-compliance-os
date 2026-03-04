@@ -18,6 +18,7 @@ export const documentFormSchema = z.object({
   fileSizeBytes: z.coerce.number().min(0).max(10 * 1024 * 1024, 'File must be under 10MB'),
   documentType: z.enum(['utility_bill', 'compliance_report', 'deduction_form', 'other']).default('other'),
   complianceYear: z.string().optional(),
+  filePath: z.string().min(1, 'File path is required'),
 });
 
 export type DocumentFormValues = z.infer<typeof documentFormSchema>;
@@ -50,22 +51,16 @@ export async function uploadDocument(formData: DocumentFormValues) {
   const data = validated.data;
 
   try {
-    // TODO: Upload file to Supabase Storage and get real file path
-    // For now, store a placeholder path with metadata
-    const placeholderPath = `documents/${data.buildingId}/${Date.now()}-${data.fileName}`;
-
     const [document] = await db
       .insert(documents)
       .values({
         buildingId: data.buildingId,
         fileName: data.fileName,
         fileType: data.fileType,
-        filePath: placeholderPath,
+        filePath: data.filePath,
         fileSizeBytes: data.fileSizeBytes,
         documentType: data.documentType,
         uploadedBy: user.id,
-        // TODO: Link to compliance year if provided
-        // complianceYearId: data.complianceYear || null,
       })
       .returning();
 
@@ -88,7 +83,11 @@ export async function deleteDocument(id: string, buildingId: string) {
   }
 
   try {
-    // TODO: Delete file from Supabase Storage as well
+    const [doc] = await db.select({ filePath: documents.filePath }).from(documents).where(eq(documents.id, id));
+    if (doc?.filePath) {
+      const supabase = await createClient();
+      await supabase.storage.from('documents').remove([doc.filePath]);
+    }
     await db.delete(documents).where(eq(documents.id, id));
     revalidatePath(`/buildings/${buildingId}/documents`);
     return { success: true };

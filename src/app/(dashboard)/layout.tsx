@@ -10,7 +10,10 @@ import {
   FileBarChart,
   Settings,
   Menu,
+  LogOut,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -24,7 +27,7 @@ const navigation = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-function SidebarContent({ pathname }: { pathname: string }) {
+function SidebarContent({ pathname, onLogout }: { pathname: string; onLogout: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center px-6">
@@ -61,7 +64,15 @@ function SidebarContent({ pathname }: { pathname: string }) {
         })}
       </nav>
       <Separator />
-      <div className="p-4">
+      <div className="p-4 space-y-3">
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+          onClick={onLogout}
+        >
+          <LogOut className="h-4 w-4" />
+          Log Out
+        </Button>
         <p className="text-xs text-muted-foreground">
           Building Compliance OS v0.6.0
         </p>
@@ -76,17 +87,24 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <aside className="hidden w-64 border-r bg-card lg:block">
-        <SidebarContent pathname={pathname} />
+        <SidebarContent pathname={pathname} onLogout={handleLogout} />
       </aside>
 
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent side="left" className="w-64 p-0">
-          <SidebarContent pathname={pathname} />
+          <SidebarContent pathname={pathname} onLogout={handleLogout} />
         </SheetContent>
       </Sheet>
 

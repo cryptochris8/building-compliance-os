@@ -1,22 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ReadingForm } from "@/components/readings/reading-form";
 import { createReading, type ReadingFormValues } from "@/app/actions/readings";
+import { getUtilityAccountsForBuilding } from "@/app/actions/utility-accounts";
 
 export default function NewReadingPage() {
   const params = useParams();
   const router = useRouter();
   const buildingId = params.id as string;
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [accounts, setAccounts] = useState<
+    { id: string; accountNumber: string | null; utilityType: string; providerName: string | null }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
 
-  // TODO: Fetch actual utility accounts from the database
-  const mockAccounts = [
-    { id: "placeholder-elec", accountNumber: "ELEC-001", utilityType: "electricity", providerName: "Con Edison" },
-    { id: "placeholder-gas", accountNumber: "GAS-001", utilityType: "natural_gas", providerName: "National Grid" },
-    { id: "placeholder-steam", accountNumber: "STEAM-001", utilityType: "district_steam", providerName: "Con Edison Steam" },
-  ];
+  useEffect(() => {
+    getUtilityAccountsForBuilding(buildingId).then((result) => {
+      if (result.accounts) {
+        setAccounts(result.accounts);
+      }
+      setLoading(false);
+    });
+  }, [buildingId]);
 
   const handleSubmit = async (values: ReadingFormValues) => {
     setIsSubmitting(true);
@@ -34,6 +41,10 @@ export default function NewReadingPage() {
     }
   };
 
+  if (loading) {
+    return <div className="py-10 text-center text-muted-foreground">Loading utility accounts...</div>;
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -45,7 +56,7 @@ export default function NewReadingPage() {
 
       <ReadingForm
         buildingId={buildingId}
-        accounts={mockAccounts}
+        accounts={accounts}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
         mode="create"

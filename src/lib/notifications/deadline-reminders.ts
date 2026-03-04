@@ -1,7 +1,11 @@
+import { Resend } from 'resend';
 import { db } from '@/lib/db';
 import { buildings, complianceYears } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getJurisdiction } from '@/lib/jurisdictions';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+const fromAddress = process.env.EMAIL_FROM || 'Building Compliance OS <onboarding@resend.dev>';
 
 export interface DeadlineReminder {
   buildingId: string;
@@ -69,10 +73,10 @@ export async function checkUpcomingDeadlines(orgId: string): Promise<DeadlineRem
   return reminders.sort((a, b) => a.daysUntilDeadline - b.daysUntilDeadline);
 }
 
-export function generateReminderEmail(
+export async function generateReminderEmail(
   reminder: DeadlineReminder,
   recipientEmail: string
-): ReminderEmail {
+): Promise<ReminderEmail> {
   const urgency = reminder.daysUntilDeadline <= 0
     ? 'OVERDUE'
     : reminder.daysUntilDeadline <= 7
@@ -95,8 +99,12 @@ export function generateReminderEmail(
     'View compliance details: ' + reminder.compliancePageUrl,
   ].join('\n');
 
-  // TODO: Integrate with Resend for actual email sending
-  console.log('[EMAIL WOULD BE SENT] To:', recipientEmail, 'Subject:', subject);
+  await resend.emails.send({
+    from: fromAddress,
+    to: recipientEmail,
+    subject,
+    html: body.replace(/\n/g, '<br/>'),
+  });
 
   return { to: recipientEmail, subject, body };
 }

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Upload, File, X } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { uploadDocument } from "@/app/actions/documents";
 
 interface DocumentUploadProps {
@@ -83,14 +84,25 @@ export function DocumentUpload({ buildingId, onUploadComplete }: DocumentUploadP
     setError(null);
 
     try {
-      // TODO: Upload file to Supabase Storage
-      // For now, just create the metadata record with a placeholder path
+      const supabase = createClient();
+      const storagePath = `${buildingId}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(storagePath, file);
+
+      if (uploadError) {
+        setError(uploadError.message);
+        setUploading(false);
+        return;
+      }
+
       const result = await uploadDocument({
         buildingId,
         fileName: file.name,
         fileType: file.type || "application/octet-stream",
         fileSizeBytes: file.size,
         documentType: documentType as "utility_bill" | "compliance_report" | "deduction_form" | "other",
+        filePath: storagePath,
       });
 
       if (result.error) {

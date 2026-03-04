@@ -17,6 +17,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { db } from '@/lib/db';
+import { buildings as buildingsTable, users, complianceYears } from '@/lib/db/schema';
+import { eq, desc } from 'drizzle-orm';
+import { createClient } from '@/lib/supabase/server';
 import type { Building, ComplianceStatus } from '@/types';
 
 function StatusBadge({ status }: { status: ComplianceStatus }) {
@@ -35,10 +39,41 @@ function StatusBadge({ status }: { status: ComplianceStatus }) {
   return <Badge variant={variants[status]}>{labels[status]}</Badge>;
 }
 
-// Placeholder data - will be replaced with real data from the database
-const buildings: (Building & { status: ComplianceStatus })[] = [];
+async function getBuildings(): Promise<(Building & { status: ComplianceStatus })[]> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
 
-export default function BuildingsPage() {
+  const [dbUser] = await db.select({ organizationId: users.organizationId })
+    .from(users).where(eq(users.id, user.id)).limit(1);
+  if (!dbUser?.organizationId) return [];
+
+  const rows = await db.select().from(buildingsTable)
+    .where(eq(buildingsTable.organizationId, dbUser.organizationId));
+
+  const result: (Building & { status: ComplianceStatus })[] = [];
+  for (const b of rows) {
+    const [latestCy] = await db.select({ status: complianceYears.status })
+      .from(complianceYears)
+      .where(eq(complianceYears.buildingId, b.id))
+      .orderBy(desc(complianceYears.year))
+      .limit(1);
+
+    result.push({
+      ...b,
+      grossSqft: b.grossSqft ?? '0',
+      occupancyType: b.occupancyType ?? '',
+      createdAt: b.createdAt?.toISOString() ?? '',
+      updatedAt: b.updatedAt?.toISOString() ?? '',
+      status: (latestCy?.status as ComplianceStatus) || 'incomplete',
+    } as Building & { status: ComplianceStatus });
+  }
+
+  return result;
+}
+
+export default async function BuildingsPage() {
+  const buildings = await getBuildings();
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">

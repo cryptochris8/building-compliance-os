@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { importJobs, utilityAccounts, utilityReadings } from "@/lib/db/schema";
+import { importJobs, utilityAccounts, utilityReadings, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { parseCsv, validateCsvHeaders } from "@/lib/csv/parser";
@@ -51,9 +51,14 @@ export async function POST(
       );
     }
 
-    // Create import job
+    const [dbUser] = await db.select({ organizationId: users.organizationId })
+      .from(users).where(eq(users.id, user.id)).limit(1);
+    if (!dbUser?.organizationId) {
+      return NextResponse.json({ error: "User has no organization" }, { status: 400 });
+    }
+
     const [job] = await db.insert(importJobs).values({
-      organizationId: user.id, // TODO: get actual org ID from user
+      organizationId: dbUser.organizationId,
       buildingId,
       fileName: file.name,
       filePath: "imports/" + buildingId + "/" + Date.now() + "-" + file.name,
