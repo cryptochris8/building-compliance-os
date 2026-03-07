@@ -15,7 +15,8 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import type { PortfolioSummary, PortfolioBuildingRow } from "@/lib/emissions/types";
+import type { PortfolioSummary } from "@/lib/emissions/types";
+import { Pagination } from "@/components/ui/pagination";
 
 const STATUS_BADGES: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   compliant: { label: "Compliant", variant: "default" },
@@ -26,6 +27,13 @@ const STATUS_BADGES: Record<string, { label: string; variant: "default" | "secon
 
 type SortKey = "name" | "grossSqft" | "status" | "totalEmissions" | "emissionsLimit" | "overUnder" | "penalty" | "completeness";
 
+function SortIcon({ colKey, sortKey, sortDir }: { colKey: SortKey; sortKey: SortKey; sortDir: "asc" | "desc" }) {
+  if (sortKey !== colKey) return <ArrowUpDown className="ml-1 h-3 w-3 inline opacity-40" />;
+  return sortDir === "asc"
+    ? <ArrowUp className="ml-1 h-3 w-3 inline" />
+    : <ArrowDown className="ml-1 h-3 w-3 inline" />;
+}
+
 interface PortfolioDashboardClientProps {
   summary: PortfolioSummary | null;
   year: number;
@@ -35,10 +43,11 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("penalty");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-
-  const buildings = summary?.buildings || [];
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   const filtered = useMemo(() => {
+    const buildings = summary?.buildings || [];
     let result = [...buildings];
     if (statusFilter !== "all") {
       result = result.filter((b) => b.status === statusFilter);
@@ -54,7 +63,16 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
       return sortDir === "asc" ? aVal - bVal : bVal - aVal;
     });
     return result;
-  }, [buildings, statusFilter, sortKey, sortDir]);
+  }, [summary?.buildings, statusFilter, sortKey, sortDir]);
+
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paginatedBuildings = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  // Reset page when filter changes
+  const handleStatusFilter = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -63,13 +81,6 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
       setSortKey(key);
       setSortDir("desc");
     }
-  };
-
-  const SortIcon = ({ colKey }: { colKey: SortKey }) => {
-    if (sortKey !== colKey) return <ArrowUpDown className="ml-1 h-3 w-3 inline opacity-40" />;
-    return sortDir === "asc"
-      ? <ArrowUp className="ml-1 h-3 w-3 inline" />
-      : <ArrowDown className="ml-1 h-3 w-3 inline" />;
   };
 
   const totalBuildings = summary?.totalBuildings || 0;
@@ -102,7 +113,7 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Compliant</CardTitle>
-            <ShieldCheck className="h-4 w-4 text-green-600" />
+            <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{compliant}</div>
@@ -112,7 +123,7 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">At Risk</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{atRisk}</div>
@@ -122,7 +133,7 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Over Limit</CardTitle>
-            <XCircle className="h-4 w-4 text-red-600" />
+            <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{overLimit}</div>
@@ -132,7 +143,7 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Penalty Exposure</CardTitle>
-            <DollarSign className="h-4 w-4 text-red-600" />
+            <DollarSign className="h-4 w-4 text-red-600 dark:text-red-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{"$" + totalPenalty.toLocaleString()}</div>
@@ -159,8 +170,8 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
               <CardTitle>Buildings Compliance Status</CardTitle>
               <CardDescription>{filtered.length} building{filtered.length !== 1 ? "s" : ""}</CardDescription>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Filter by status" /></SelectTrigger>
+            <Select value={statusFilter} onValueChange={handleStatusFilter}>
+              <SelectTrigger className="w-[180px]" aria-label="Filter by status"><SelectValue placeholder="Filter by status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="compliant">Compliant</SelectItem>
@@ -187,51 +198,51 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>
+                    <TableHead aria-sort={sortKey === "name" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                       <Button variant="ghost" size="sm" onClick={() => handleSort("name")} className="px-0 font-medium">
-                        Building<SortIcon colKey="name" />
+                        Building<SortIcon colKey="name" sortKey={sortKey} sortDir={sortDir} />
                       </Button>
                     </TableHead>
                     <TableHead>Address</TableHead>
-                    <TableHead>
+                    <TableHead aria-sort={sortKey === "grossSqft" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                       <Button variant="ghost" size="sm" onClick={() => handleSort("grossSqft")} className="px-0 font-medium">
-                        Sq Ft<SortIcon colKey="grossSqft" />
+                        Sq Ft<SortIcon colKey="grossSqft" sortKey={sortKey} sortDir={sortDir} />
                       </Button>
                     </TableHead>
-                    <TableHead>
+                    <TableHead aria-sort={sortKey === "status" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                       <Button variant="ghost" size="sm" onClick={() => handleSort("status")} className="px-0 font-medium">
-                        Status<SortIcon colKey="status" />
+                        Status<SortIcon colKey="status" sortKey={sortKey} sortDir={sortDir} />
                       </Button>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-right" aria-sort={sortKey === "totalEmissions" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                       <Button variant="ghost" size="sm" onClick={() => handleSort("totalEmissions")} className="px-0 font-medium">
-                        Emissions<SortIcon colKey="totalEmissions" />
+                        Emissions<SortIcon colKey="totalEmissions" sortKey={sortKey} sortDir={sortDir} />
                       </Button>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-right" aria-sort={sortKey === "emissionsLimit" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                       <Button variant="ghost" size="sm" onClick={() => handleSort("emissionsLimit")} className="px-0 font-medium">
-                        Limit<SortIcon colKey="emissionsLimit" />
+                        Limit<SortIcon colKey="emissionsLimit" sortKey={sortKey} sortDir={sortDir} />
                       </Button>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-right" aria-sort={sortKey === "overUnder" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                       <Button variant="ghost" size="sm" onClick={() => handleSort("overUnder")} className="px-0 font-medium">
-                        Over/Under<SortIcon colKey="overUnder" />
+                        Over/Under<SortIcon colKey="overUnder" sortKey={sortKey} sortDir={sortDir} />
                       </Button>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-right" aria-sort={sortKey === "penalty" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                       <Button variant="ghost" size="sm" onClick={() => handleSort("penalty")} className="px-0 font-medium">
-                        Penalty<SortIcon colKey="penalty" />
+                        Penalty<SortIcon colKey="penalty" sortKey={sortKey} sortDir={sortDir} />
                       </Button>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-right" aria-sort={sortKey === "completeness" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
                       <Button variant="ghost" size="sm" onClick={() => handleSort("completeness")} className="px-0 font-medium">
-                        Complete<SortIcon colKey="completeness" />
+                        Complete<SortIcon colKey="completeness" sortKey={sortKey} sortDir={sortDir} />
                       </Button>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((b) => {
+                  {paginatedBuildings.map((b) => {
                     const badge = STATUS_BADGES[b.status] || STATUS_BADGES.incomplete;
                     return (
                       <TableRow key={b.id}>
@@ -243,11 +254,11 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
                         <TableCell><Badge variant={badge.variant}>{badge.label}</Badge></TableCell>
                         <TableCell className="text-right">{b.totalEmissions.toFixed(2)}</TableCell>
                         <TableCell className="text-right">{b.emissionsLimit.toFixed(2)}</TableCell>
-                        <TableCell className={"text-right " + (b.overUnder > 0 ? "text-red-600 font-medium" : "text-green-600")}>
+                        <TableCell className={"text-right " + (b.overUnder > 0 ? "text-red-600 dark:text-red-400 font-medium" : "text-green-600 dark:text-green-400")}>
                           {b.overUnder > 0 ? "+" : ""}{b.overUnder.toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {b.penalty > 0 ? <span className="text-red-600">{"$" + b.penalty.toLocaleString()}</span> : "$0"}
+                          {b.penalty > 0 ? <span className="text-red-600 dark:text-red-400">{"$" + b.penalty.toLocaleString()}</span> : "$0"}
                         </TableCell>
                         <TableCell className="text-right">{b.completeness}%</TableCell>
                       </TableRow>
@@ -257,6 +268,7 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
               </Table>
             </div>
           )}
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

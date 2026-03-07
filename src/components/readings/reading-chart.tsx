@@ -54,6 +54,7 @@ export function ReadingChart({ data, title = "Monthly Consumption (kBtu)" }: Rea
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
+        <div role="img" aria-label="Bar chart showing monthly utility consumption by fuel type in kBtu">
         <ResponsiveContainer width="100%" height={400}>
           <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -87,6 +88,7 @@ export function ReadingChart({ data, title = "Monthly Consumption (kBtu)" }: Rea
             />
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );

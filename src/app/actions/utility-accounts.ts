@@ -3,13 +3,13 @@
 import { db } from '@/lib/db';
 import { utilityAccounts } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { createClient } from '@/lib/supabase/server';
+import { assertBuildingAccess } from '@/lib/auth/helpers';
 
 export async function getUtilityAccountsForBuilding(buildingId: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { error: 'Unauthorized', accounts: [] };
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) {
+    return { error: 'Building not found or access denied', accounts: [] };
   }
 
   const rows = await db.select({

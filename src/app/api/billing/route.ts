@@ -8,6 +8,7 @@ import {
   createPortalSession,
   getSubscription,
 } from '@/lib/stripe/client';
+import { apiLimiter } from '@/lib/rate-limit';
 
 async function getAuthOrgId(): Promise<{
   orgId: string;
@@ -46,6 +47,12 @@ export async function POST(request: NextRequest) {
     const auth = await getAuthOrgId();
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Rate limit: 5 checkout attempts per minute per org
+    const { success } = apiLimiter.check(5, 'billing:' + auth.orgId);
+    if (!success) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
     const { priceId } = await request.json();

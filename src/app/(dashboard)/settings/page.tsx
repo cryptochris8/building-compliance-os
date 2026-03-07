@@ -35,7 +35,8 @@ async function getBillingInfo() {
       buildingCount: buildingCount?.value ?? 0,
       buildingLimit: plan.buildingLimit,
     };
-  } catch {
+  } catch (err) {
+    console.error('Failed to load billing info:', err instanceof Error ? err.message : err);
     return null;
   }
 }

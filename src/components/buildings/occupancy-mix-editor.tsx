@@ -103,7 +103,7 @@ export function OccupancyMixEditor({ grossSqft, initialMix, onSave }: OccupancyM
         </Button>
 
         <div className={"flex items-center gap-2 p-3 rounded-lg border " + (isValid ? "bg-green-50 border-green-200 dark:bg-green-950/20" : "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20")}>
-          {!isValid && <AlertTriangle className="h-4 w-4 text-yellow-600" />}
+          {!isValid && <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />}
           <span className="text-sm">
             Total allocated: {totalMixSqft.toLocaleString()} / {grossSqft.toLocaleString()} sqft
             {!isValid && " (difference: " + difference.toLocaleString() + " sqft)"}

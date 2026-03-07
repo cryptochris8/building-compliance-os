@@ -14,7 +14,8 @@ async function getOrgId(): Promise<string | null> {
     const [dbUser] = await db.select({ organizationId: users.organizationId })
       .from(users).where(eq(users.id, user.id)).limit(1);
     return dbUser?.organizationId || null;
-  } catch {
+  } catch (err) {
+    console.error('Failed to get org ID:', err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -27,8 +28,8 @@ export default async function DashboardIndex() {
   if (orgId) {
     try {
       summary = await getComplianceSummary(orgId, currentYear);
-    } catch {
-      // No compliance data yet
+    } catch (err) {
+      console.error('Failed to load compliance summary:', err instanceof Error ? err.message : err);
     }
   }
 

@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Check, CreditCard, Zap } from 'lucide-react';
+import { toast } from 'sonner';
 
 export interface BillingCardProps {
   currentTier: string;
@@ -70,6 +71,7 @@ export function BillingCard({
   buildingLimit,
 }: BillingCardProps) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const trialDaysRemaining = trialEnd
     ? Math.max(
@@ -85,6 +87,7 @@ export function BillingCard({
 
   async function handleSubscribe(priceId: string) {
     setLoading(priceId);
+    setError(null);
     try {
       const res = await fetch('/api/billing', {
         method: 'POST',
@@ -94,9 +97,13 @@ export function BillingCard({
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
+      } else if (data.error) {
+        setError(data.error);
       }
-    } catch {
-      // Handle error silently
+    } catch (err) {
+      console.error('Billing subscribe error:', err);
+      setError('Failed to start checkout. Please try again.');
+      toast.error('Failed to start checkout. Please try again.');
     } finally {
       setLoading(null);
     }
@@ -104,14 +111,19 @@ export function BillingCard({
 
   async function handleManageBilling() {
     setLoading('portal');
+    setError(null);
     try {
       const res = await fetch('/api/billing?action=portal');
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
+      } else if (data.error) {
+        setError(data.error);
       }
-    } catch {
-      // Handle error silently
+    } catch (err) {
+      console.error('Billing portal error:', err);
+      setError('Failed to open billing portal. Please try again.');
+      toast.error('Failed to open billing portal. Please try again.');
     } finally {
       setLoading(null);
     }
@@ -119,6 +131,11 @@ export function BillingCard({
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
       {/* Current Plan */}
       <Card>
         <CardHeader>

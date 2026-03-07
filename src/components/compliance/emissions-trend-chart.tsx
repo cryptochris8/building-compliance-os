@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -53,6 +52,7 @@ export function EmissionsTrendChart({ data }: EmissionsTrendChartProps) {
         <CardTitle>Emissions Trend (Year-over-Year)</CardTitle>
       </CardHeader>
       <CardContent>
+        <div role="img" aria-label="Line chart showing emissions trend compared to limits over years">
         <ResponsiveContainer width="100%" height={350}>
           <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -87,6 +87,7 @@ export function EmissionsTrendChart({ data }: EmissionsTrendChartProps) {
             />
           </ComposedChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );

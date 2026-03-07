@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { buildings, complianceYears, deductions, documents } from "@/lib/db/schema";
+import { buildings, complianceYears, deductions } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { DeductionsClient } from "@/components/compliance/deductions-client";
 

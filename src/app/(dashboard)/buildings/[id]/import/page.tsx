@@ -110,7 +110,8 @@ export default function ImportPage() {
           pollJobStatus(result.id);
         }
       }
-    } catch {
+    } catch (err) {
+      console.error('CSV import error:', err);
       setError("Import failed. Please try again.");
     } finally {
       setImporting(false);
@@ -125,7 +126,8 @@ export default function ImportPage() {
         const job = await res.json();
         setImportJob(job);
         if (job.status === "completed" || job.status === "failed") break;
-      } catch {
+      } catch (err) {
+        console.error('Import job poll failed:', err);
         break;
       }
     }

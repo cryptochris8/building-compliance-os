@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,18 +42,18 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function getUrgencyColor(days: number, submitted: boolean): string {
-  if (submitted) return "text-green-600";
-  if (days < 0) return "text-red-600 font-bold";
-  if (days < 30) return "text-orange-600 font-semibold";
-  if (days < 60) return "text-yellow-600";
-  return "text-green-600";
+  if (submitted) return "text-green-600 dark:text-green-400";
+  if (days < 0) return "text-red-600 dark:text-red-400 font-bold";
+  if (days < 30) return "text-orange-600 dark:text-orange-400 font-semibold";
+  if (days < 60) return "text-yellow-600 dark:text-yellow-400";
+  return "text-green-600 dark:text-green-400";
 }
 
 function getUrgencyBadge(days: number, submitted: boolean) {
-  if (submitted) return <Badge className="bg-green-100 text-green-800">Submitted</Badge>;
+  if (submitted) return <Badge className="bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300">Submitted</Badge>;
   if (days < 0) return <Badge variant="destructive">Overdue</Badge>;
-  if (days < 30) return <Badge className="bg-orange-100 text-orange-800">Due Soon</Badge>;
-  if (days < 60) return <Badge className="bg-yellow-100 text-yellow-800">Upcoming</Badge>;
+  if (days < 30) return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300">Due Soon</Badge>;
+  if (days < 60) return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300">Upcoming</Badge>;
   return <Badge variant="outline">On Track</Badge>;
 }
 
@@ -115,12 +115,6 @@ export function ComplianceCalendarClient({ deadlines }: { deadlines: ComplianceD
     setSelectedIds(new Set());
   };
 
-  const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
-    <TableHead className="cursor-pointer select-none" onClick={() => handleSort(field)}>
-      {children} {sortField === field ? (sortAsc ? " ^" : " v") : ""}
-    </TableHead>
-  );
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -180,13 +174,23 @@ export function ComplianceCalendarClient({ deadlines }: { deadlines: ComplianceD
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
-                    <input type="checkbox" checked={selectedIds.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} />
+                    <input type="checkbox" aria-label="Select all deadlines" checked={selectedIds.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} />
                   </TableHead>
-                  <SortHeader field="buildingName">Building Name</SortHeader>
-                  <SortHeader field="jurisdiction">Jurisdiction</SortHeader>
-                  <SortHeader field="reportDueDate">Report Due Date</SortHeader>
-                  <SortHeader field="status">Status</SortHeader>
-                  <SortHeader field="daysUntilDue">Days Until Due</SortHeader>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("buildingName")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort("buildingName"); } }} tabIndex={0} role="columnheader" aria-sort={sortField === "buildingName" ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                    Building Name {sortField === "buildingName" ? (sortAsc ? "^" : "v") : ""}
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("jurisdiction")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort("jurisdiction"); } }} tabIndex={0} role="columnheader" aria-sort={sortField === "jurisdiction" ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                    Jurisdiction {sortField === "jurisdiction" ? (sortAsc ? "^" : "v") : ""}
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("reportDueDate")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort("reportDueDate"); } }} tabIndex={0} role="columnheader" aria-sort={sortField === "reportDueDate" ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                    Report Due Date {sortField === "reportDueDate" ? (sortAsc ? "^" : "v") : ""}
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("status")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort("status"); } }} tabIndex={0} role="columnheader" aria-sort={sortField === "status" ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                    Status {sortField === "status" ? (sortAsc ? "^" : "v") : ""}
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("daysUntilDue")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort("daysUntilDue"); } }} tabIndex={0} role="columnheader" aria-sort={sortField === "daysUntilDue" ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                    Days Until Due {sortField === "daysUntilDue" ? (sortAsc ? "^" : "v") : ""}
+                  </TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -203,7 +207,7 @@ export function ComplianceCalendarClient({ deadlines }: { deadlines: ComplianceD
                     return (
                       <TableRow key={key} className={d.daysUntilDue < 0 && !d.reportSubmitted ? "bg-red-50 dark:bg-red-950/10" : ""}>
                         <TableCell>
-                          <input type="checkbox" checked={selectedIds.has(key)} onChange={() => toggleSelect(key)} />
+                          <input type="checkbox" aria-label={"Select " + d.buildingName + " " + d.year} checked={selectedIds.has(key)} onChange={() => toggleSelect(key)} />
                         </TableCell>
                         <TableCell>
                           <Link href={"/buildings/" + d.buildingId + "/compliance?year=" + d.year} className="font-medium hover:underline">

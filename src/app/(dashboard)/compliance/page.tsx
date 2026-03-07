@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { buildings, complianceYears, users } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { getJurisdiction } from "@/lib/jurisdictions";
 import { ComplianceCalendarClient } from "@/components/compliance/compliance-calendar-client";
@@ -30,7 +30,7 @@ export interface ComplianceDeadlineRow {
 export default async function CompliancePage() {
   const orgId = await getUserOrgId();
 
-  let deadlines: ComplianceDeadlineRow[] = [];
+  const deadlines: ComplianceDeadlineRow[] = [];
 
   if (orgId) {
     const orgBuildings = await db.select({
@@ -39,38 +39,52 @@ export default async function CompliancePage() {
       jurisdictionId: buildings.jurisdictionId,
     }).from(buildings).where(eq(buildings.organizationId, orgId));
 
-    const now = new Date();
-
-    for (const building of orgBuildings) {
-      const cyRecords = await db.select().from(complianceYears)
-        .where(eq(complianceYears.buildingId, building.id))
+    if (orgBuildings.length > 0) {
+      // Batch query: fetch all compliance years for all buildings in one query
+      const buildingIds = orgBuildings.map(b => b.id);
+      const allCyRecords = await db.select().from(complianceYears)
+        .where(inArray(complianceYears.buildingId, buildingIds))
         .orderBy(desc(complianceYears.year));
 
-      for (const cy of cyRecords) {
-        let dueDate: Date;
-        if (cy.reportDueDate) {
-          dueDate = new Date(cy.reportDueDate);
-        } else {
-          const jurisdiction = getJurisdiction(building.jurisdictionId);
-          dueDate = new Date(cy.year + 1, jurisdiction.reportingDeadline.month - 1, jurisdiction.reportingDeadline.day);
+      // Group by building
+      const cyByBuilding = new Map<string, typeof allCyRecords>();
+      for (const cy of allCyRecords) {
+        const existing = cyByBuilding.get(cy.buildingId) || [];
+        existing.push(cy);
+        cyByBuilding.set(cy.buildingId, existing);
+      }
+
+      const now = new Date();
+
+      for (const building of orgBuildings) {
+        const cyRecords = cyByBuilding.get(building.id) || [];
+
+        for (const cy of cyRecords) {
+          let dueDate: Date;
+          if (cy.reportDueDate) {
+            dueDate = new Date(cy.reportDueDate);
+          } else {
+            const jurisdiction = getJurisdiction(building.jurisdictionId);
+            dueDate = new Date(cy.year + 1, jurisdiction.reportingDeadline.month - 1, jurisdiction.reportingDeadline.day);
+          }
+
+          const diffMs = dueDate.getTime() - now.getTime();
+          const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+          const jurisdictionConfig = getJurisdiction(building.jurisdictionId);
+
+          deadlines.push({
+            buildingId: building.id,
+            buildingName: building.name,
+            jurisdiction: building.jurisdictionId,
+            jurisdictionName: jurisdictionConfig.name,
+            year: cy.year,
+            reportDueDate: dueDate.toISOString().split('T')[0],
+            status: cy.status || 'incomplete',
+            daysUntilDue: daysUntil,
+            reportSubmitted: cy.reportSubmitted || false,
+            locked: cy.locked || false,
+          });
         }
-
-        const diffMs = dueDate.getTime() - now.getTime();
-        const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-        const jurisdictionConfig = getJurisdiction(building.jurisdictionId);
-
-        deadlines.push({
-          buildingId: building.id,
-          buildingName: building.name,
-          jurisdiction: building.jurisdictionId,
-          jurisdictionName: jurisdictionConfig.name,
-          year: cy.year,
-          reportDueDate: dueDate.toISOString().split('T')[0],
-          status: cy.status || 'incomplete',
-          daysUntilDue: daysUntil,
-          reportSubmitted: cy.reportSubmitted || false,
-          locked: cy.locked || false,
-        });
       }
     }
   }

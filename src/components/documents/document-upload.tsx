@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, File, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadDocument } from "@/app/actions/documents";
+import { toast } from "sonner";
 
 interface DocumentUploadProps {
   buildingId: string;
@@ -107,12 +108,16 @@ export function DocumentUpload({ buildingId, onUploadComplete }: DocumentUploadP
 
       if (result.error) {
         setError(result.error);
+        toast.error(result.error);
       } else {
         setFile(null);
+        toast.success("Document uploaded successfully");
         onUploadComplete?.();
       }
-    } catch {
+    } catch (err) {
+      console.error('Document upload error:', err);
       setError("Upload failed. Please try again.");
+      toast.error("Upload failed. Please try again.");
     } finally {
       setUploading(false);
     }

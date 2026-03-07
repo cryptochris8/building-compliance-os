@@ -4,9 +4,9 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { utilityReadings, complianceYears } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { triggerRecalculation } from '@/lib/emissions/recalculation';
+import { getAuthUser, assertBuildingAccess } from '@/lib/auth/helpers';
 
 export const readingFormSchema = z.object({
   utilityAccountId: z.string().min(1, 'Utility account is required'),
@@ -34,12 +34,6 @@ export const readingFormSchema = z.object({
 
 export type ReadingFormValues = z.infer<typeof readingFormSchema>;
 
-async function getAuthUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
-
 async function isYearLocked(buildingId: string, year: number): Promise<boolean> {
   const [cy] = await db.select({ locked: complianceYears.locked }).from(complianceYears)
     .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
@@ -54,6 +48,10 @@ export async function createReading(formData: ReadingFormValues) {
   const validated = readingFormSchema.safeParse(formData);
   if (!validated.success) return { error: 'Validation failed', details: validated.error.flatten() };
   const data = validated.data;
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(data.buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
 
   // Check locked year
   if (await isYearLocked(data.buildingId, data.periodYear)) {
@@ -79,6 +77,7 @@ export async function createReading(formData: ReadingFormValues) {
     await triggerRecalculation(data.buildingId).catch(console.error);
     revalidatePath('/buildings/' + data.buildingId + '/readings');
     revalidatePath('/buildings/' + data.buildingId + '/compliance');
+    if (access) revalidateTag('portfolio-summary-' + access.orgId + '-' + data.periodYear, 'max');
     return { success: true, reading };
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Failed to create reading' };
@@ -92,6 +91,10 @@ export async function updateReading(id: string, formData: ReadingFormValues) {
   const validated = readingFormSchema.safeParse(formData);
   if (!validated.success) return { error: 'Validation failed', details: validated.error.flatten() };
   const data = validated.data;
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(data.buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
 
   if (await isYearLocked(data.buildingId, data.periodYear)) {
     return { error: 'Compliance year ' + data.periodYear + ' is locked. Unlock it before editing readings.' };
@@ -115,6 +118,7 @@ export async function updateReading(id: string, formData: ReadingFormValues) {
     await triggerRecalculation(data.buildingId).catch(console.error);
     revalidatePath('/buildings/' + data.buildingId + '/readings');
     revalidatePath('/buildings/' + data.buildingId + '/compliance');
+    if (access) revalidateTag('portfolio-summary-' + access.orgId + '-' + data.periodYear, 'max');
     return { success: true, reading };
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Failed to update reading' };
@@ -124,6 +128,10 @@ export async function updateReading(id: string, formData: ReadingFormValues) {
 export async function deleteReading(id: string, buildingId: string) {
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized' };
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
 
   // Check if reading belongs to a locked year
   const [reading] = await db.select({ periodStart: utilityReadings.periodStart })
@@ -140,6 +148,10 @@ export async function deleteReading(id: string, buildingId: string) {
     await triggerRecalculation(buildingId).catch(console.error);
     revalidatePath('/buildings/' + buildingId + '/readings');
     revalidatePath('/buildings/' + buildingId + '/compliance');
+    if (access) {
+      const year = reading ? new Date(reading.periodStart).getFullYear() : new Date().getFullYear();
+      revalidateTag('portfolio-summary-' + access.orgId + '-' + year, 'max');
+    }
     return { success: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Failed to delete reading' };

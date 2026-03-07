@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Toaster } from "@/components/ui/sonner";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -40,7 +41,7 @@ function SidebarContent({ pathname, onLogout }: { pathname: string; onLogout: ()
         </Link>
       </div>
       <Separator />
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav aria-label="Main navigation" className="flex-1 space-y-1 px-3 py-4">
         {navigation.map((item) => {
           const isActive =
             item.href === "/dashboard"
@@ -112,7 +113,7 @@ export default function DashboardLayout({
         <header className="flex h-16 items-center gap-4 border-b bg-card px-6 lg:hidden">
           <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" aria-label="Open menu">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
@@ -124,6 +125,7 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+      <Toaster />
     </div>
   );
 }

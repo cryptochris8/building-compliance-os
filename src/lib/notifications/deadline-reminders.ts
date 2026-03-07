@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 import { db } from '@/lib/db';
 import { buildings, complianceYears } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { getJurisdiction } from '@/lib/jurisdictions';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -35,37 +35,50 @@ export async function checkUpcomingDeadlines(orgId: string): Promise<DeadlineRem
     jurisdictionId: buildings.jurisdictionId,
   }).from(buildings).where(eq(buildings.organizationId, orgId));
 
-  for (const building of orgBuildings) {
-    const cyRecords = await db.select().from(complianceYears)
-      .where(eq(complianceYears.buildingId, building.id));
+  if (orgBuildings.length > 0) {
+    // Batch query: all compliance years for all org buildings
+    const buildingIds = orgBuildings.map(b => b.id);
+    const allCyRecords = await db.select().from(complianceYears)
+      .where(inArray(complianceYears.buildingId, buildingIds));
 
-    for (const cy of cyRecords) {
-      if (cy.reportSubmitted) continue;
+    const cyByBuilding = new Map<string, typeof allCyRecords>();
+    for (const cy of allCyRecords) {
+      const existing = cyByBuilding.get(cy.buildingId) || [];
+      existing.push(cy);
+      cyByBuilding.set(cy.buildingId, existing);
+    }
 
-      let dueDate: Date;
-      if (cy.reportDueDate) {
-        dueDate = new Date(cy.reportDueDate);
-      } else {
-        const jurisdiction = getJurisdiction(building.jurisdictionId);
-        dueDate = new Date(cy.year + 1, jurisdiction.reportingDeadline.month - 1, jurisdiction.reportingDeadline.day);
-      }
+    for (const building of orgBuildings) {
+      const cyRecords = cyByBuilding.get(building.id) || [];
 
-      const diffMs = dueDate.getTime() - now.getTime();
-      const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      for (const cy of cyRecords) {
+        if (cy.reportSubmitted) continue;
 
-      if (daysUntil <= 30) {
-        const jurisdiction = getJurisdiction(building.jurisdictionId);
-        reminders.push({
-          buildingId: building.id,
-          buildingName: building.name,
-          jurisdictionId: building.jurisdictionId,
-          jurisdictionName: jurisdiction.name,
-          year: cy.year,
-          reportDueDate: dueDate.toISOString().split('T')[0],
-          daysUntilDeadline: daysUntil,
-          status: cy.status || 'incomplete',
-          compliancePageUrl: '/buildings/' + building.id + '/compliance?year=' + cy.year,
-        });
+        let dueDate: Date;
+        if (cy.reportDueDate) {
+          dueDate = new Date(cy.reportDueDate);
+        } else {
+          const jurisdiction = getJurisdiction(building.jurisdictionId);
+          dueDate = new Date(cy.year + 1, jurisdiction.reportingDeadline.month - 1, jurisdiction.reportingDeadline.day);
+        }
+
+        const diffMs = dueDate.getTime() - now.getTime();
+        const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+        if (daysUntil <= 30) {
+          const jurisdiction = getJurisdiction(building.jurisdictionId);
+          reminders.push({
+            buildingId: building.id,
+            buildingName: building.name,
+            jurisdictionId: building.jurisdictionId,
+            jurisdictionName: jurisdiction.name,
+            year: cy.year,
+            reportDueDate: dueDate.toISOString().split('T')[0],
+            daysUntilDeadline: daysUntil,
+            status: cy.status || 'incomplete',
+            compliancePageUrl: '/buildings/' + building.id + '/compliance?year=' + cy.year,
+          });
+        }
       }
     }
   }

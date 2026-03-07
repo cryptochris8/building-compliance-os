@@ -65,12 +65,13 @@ export default function MarketingLayout({
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><span>About</span></li>
                 <li><span>Contact</span></li>
-                <li><span>Privacy Policy</span></li>
+                <li><Link href="/privacy" className="hover:text-foreground">Privacy Policy</Link></li>
+                <li><Link href="/terms" className="hover:text-foreground">Terms of Service</Link></li>
               </ul>
             </div>
           </div>
           <div className="mt-8 border-t pt-8 text-center text-sm text-muted-foreground">
-            &copy; 2025 Building Compliance OS. All rights reserved.
+            &copy; 2026 Building Compliance OS. All rights reserved.
           </div>
         </div>
       </footer>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, Calculator, Check, FileBarChart, Gauge, ShieldCheck, Zap } from "lucide-react";
+import { Calculator, Check, FileBarChart, Gauge, ShieldCheck, Zap } from "lucide-react";
 
 const features = [
   { icon: Calculator, title: "Emissions Calculator", description: "Accurate tCO2e calculations using official LL97 carbon coefficients for all fuel types." },

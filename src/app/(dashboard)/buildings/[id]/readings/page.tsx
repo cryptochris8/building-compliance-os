@@ -25,6 +25,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { ReadingChart } from "@/components/readings/reading-chart";
 import { deleteReading } from "@/app/actions/readings";
 import { normalizeToKbtu } from "@/lib/utils/unit-conversion";
+import { Pagination } from "@/components/ui/pagination";
 
 interface ReadingData {
   id: string;
@@ -77,12 +78,17 @@ export default function ReadingsPage() {
   const params = useParams();
   const buildingId = params.id as string;
   const [filterType, setFilterType] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   const readings = DEMO_READINGS;
 
   const filteredReadings = filterType === "all"
     ? readings
     : readings.filter((r) => r.utilityType === filterType);
+
+  const totalPages = Math.ceil(filteredReadings.length / pageSize);
+  const paginatedReadings = filteredReadings.slice((page - 1) * pageSize, page * pageSize);
 
   // Build chart data
   const chartDataMap = new Map<string, { month: string; electricity: number; natural_gas: number; district_steam: number; fuel_oil: number }>();
@@ -149,7 +155,7 @@ export default function ReadingsPage() {
       </div>
 
       <div className="flex items-center gap-4">
-        <Select value={filterType} onValueChange={setFilterType}>
+        <Select value={filterType} onValueChange={(v) => { setFilterType(v); setPage(1); }}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Filter by type" />
           </SelectTrigger>
@@ -182,14 +188,14 @@ export default function ReadingsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredReadings.length === 0 ? (
+              {paginatedReadings.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     No readings found. Add your first utility reading to get started.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredReadings.map((reading) => (
+                paginatedReadings.map((reading) => (
                   <TableRow key={reading.id}>
                     <TableCell>{formatDate(reading.periodStart)}</TableCell>
                     <TableCell>{UTILITY_TYPE_LABELS[reading.utilityType] || reading.utilityType}</TableCell>
@@ -213,6 +219,7 @@ export default function ReadingsPage() {
               )}
             </TableBody>
           </Table>
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

@@ -1,26 +1,13 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { users, pmConnections, pmPropertyMappings, buildings } from "@/lib/db/schema";
+import { pmConnections, pmPropertyMappings, buildings } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { PMClient } from "@/lib/portfolio-manager/client";
 import { syncProperties, syncMeterData } from "@/lib/portfolio-manager/sync";
-
-async function getAuthUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
-
-async function getUserOrgId(): Promise<string | null> {
-  const authUser = await getAuthUser();
-  if (!authUser) return null;
-  const [dbUser] = await db.select({ organizationId: users.organizationId })
-    .from(users).where(eq(users.id, authUser.id)).limit(1);
-  return dbUser?.organizationId || null;
-}
+import { getUserOrgId, assertBuildingAccess } from "@/lib/auth/helpers";
+import { encrypt } from "@/lib/auth/encryption";
 
 export async function connectPM(formData: FormData) {
   const orgId = await getUserOrgId();
@@ -34,20 +21,22 @@ export async function connectPM(formData: FormData) {
     const client = new PMClient();
     await client.authenticate(username, password);
 
+    const encryptedPassword = encrypt(password);
+
     const existing = await db.select().from(pmConnections)
       .where(eq(pmConnections.orgId, orgId)).limit(1);
 
     if (existing.length > 0) {
       await db.update(pmConnections).set({
         pmUsername: username,
-        pmPasswordEncrypted: password,
+        pmPasswordEncrypted: encryptedPassword,
         connectedAt: new Date(),
       }).where(eq(pmConnections.id, existing[0].id));
     } else {
       await db.insert(pmConnections).values({
         orgId,
         pmUsername: username,
-        pmPasswordEncrypted: password,
+        pmPasswordEncrypted: encryptedPassword,
       });
     }
 
@@ -86,6 +75,10 @@ export async function linkProperty(pmPropertyId: string, buildingId: string) {
   const orgId = await getUserOrgId();
   if (!orgId) return { error: "Unauthorized" };
 
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: "Building not found or access denied" };
+
   const [mapping] = await db.select().from(pmPropertyMappings)
     .where(and(eq(pmPropertyMappings.orgId, orgId), eq(pmPropertyMappings.pmPropertyId, pmPropertyId)))
     .limit(1);
@@ -123,6 +116,10 @@ export async function unlinkProperty(pmPropertyId: string) {
 export async function importMeterData(pmPropertyId: string, buildingId: string) {
   const orgId = await getUserOrgId();
   if (!orgId) return { error: "Unauthorized" };
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: "Building not found or access denied" };
 
   try {
     const result = await syncMeterData(buildingId, pmPropertyId, orgId);

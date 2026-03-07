@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
-import { Lock, Unlock, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Lock, Unlock, ShieldCheck } from "lucide-react";
 import { lockComplianceYear, unlockComplianceYear } from "@/app/actions/compliance-workflow";
 
 interface LockControlsProps {
@@ -48,13 +48,13 @@ export function ComplianceLockControls({ buildingId, year, locked, lockedAt }: L
       <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
         <CardContent className="flex items-center justify-between pt-6">
           <div className="flex items-center gap-3">
-            <Lock className="h-5 w-5 text-amber-600" />
+            <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <div>
               <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
                 Compliance Year {year} is Locked
               </p>
               {lockedAt && (
-                <p className="text-xs text-amber-600">
+                <p className="text-xs text-amber-600 dark:text-amber-400">
                   Locked on {new Date(lockedAt).toLocaleDateString()}
                 </p>
               )}

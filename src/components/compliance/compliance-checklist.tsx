@@ -5,9 +5,9 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { CheckCircle2, Circle, ArrowRight } from "lucide-react";
 import { updateChecklist } from "@/app/actions/compliance-workflow";
+import { toast } from "sonner";
 
 interface ChecklistProps {
   buildingId: string;
@@ -97,7 +97,14 @@ export function ComplianceChecklist({
     if (locked) return;
     const next = { ...state, [key]: !state[key] };
     setState(next);
-    startTransition(() => { updateChecklist(buildingId, year, next); });
+    startTransition(async () => {
+      const result = await updateChecklist(buildingId, year, next);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Checklist updated");
+      }
+    });
   };
 
   return (
@@ -125,9 +132,13 @@ export function ComplianceChecklist({
               >
                 <div className="flex items-center gap-3">
                   {isManual && !locked ? (
-                    <button onClick={() => handleToggle(step.key)} className="focus:outline-none">
+                    <button
+                      onClick={() => handleToggle(step.key)}
+                      className="focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
+                      aria-label={(checked ? "Uncheck" : "Check") + " " + step.label}
+                    >
                       {checked
-                        ? <CheckCircle2 className="h-5 w-5 text-green-600" />
+                        ? <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                         : <Circle className="h-5 w-5 text-muted-foreground" />}
                     </button>
                   ) : (

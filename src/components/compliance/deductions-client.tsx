@@ -17,6 +17,7 @@ import {
 import { Plus, Trash2, Lock } from "lucide-react";
 import { DeductionForm } from "./deduction-form";
 import { deleteDeduction } from "@/app/actions/deductions";
+import { toast } from "sonner";
 
 const TYPE_LABELS: Record<string, string> = {
   purchased_recs: "Purchased RECs",
@@ -61,8 +62,13 @@ export function DeductionsClient({
   const handleDelete = async (id: string) => {
     if (!complianceYearId) return;
     if (confirm("Delete this deduction?")) {
-      await deleteDeduction(id, buildingId, complianceYearId);
-      router.refresh();
+      const result = await deleteDeduction(id, buildingId, complianceYearId);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Deduction deleted");
+        router.refresh();
+      }
     }
   };
 
@@ -103,7 +109,7 @@ export function DeductionsClient({
       {locked && (
         <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
           <CardContent className="flex items-center gap-2 pt-6">
-            <Lock className="h-4 w-4 text-yellow-600" />
+            <Lock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
             <span className="text-sm text-yellow-800 dark:text-yellow-200">
               This compliance year is locked. Unlock to make changes.
             </span>
@@ -122,7 +128,7 @@ export function DeductionsClient({
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Total Deductions</p>
-            <p className="text-2xl font-bold text-green-600">-{totalDeductions.toFixed(2)} tCO2e</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400">-{totalDeductions.toFixed(2)} tCO2e</p>
           </CardContent>
         </Card>
         <Card>
@@ -169,7 +175,7 @@ export function DeductionsClient({
                     <TableCell>{d.description || "-"}</TableCell>
                     <TableCell className="text-right font-medium">{Number(d.amountTco2e).toFixed(3)}</TableCell>
                     <TableCell>
-                      {d.verified ? <Badge className="bg-green-100 text-green-800">Verified</Badge> : <Badge variant="outline">Pending</Badge>}
+                      {d.verified ? <Badge className="bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300">Verified</Badge> : <Badge variant="outline">Pending</Badge>}
                     </TableCell>
                     <TableCell>
                       {!locked && (

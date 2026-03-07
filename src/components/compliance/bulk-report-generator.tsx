@@ -66,8 +66,9 @@ export default function BulkReportGenerator() {
       <CardContent className="space-y-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">Year:</label>
+            <label htmlFor="bulk-report-year" className="text-sm font-medium">Year:</label>
             <select
+              id="bulk-report-year"
               className="border rounded px-3 py-1 text-sm"
               value={year}
               onChange={(e) => setYear(parseInt(e.target.value))}
@@ -91,6 +92,7 @@ export default function BulkReportGenerator() {
                 checked={selected.has(b.id)}
                 onChange={() => toggleBuilding(b.id)}
                 className="rounded"
+                aria-label={"Select " + b.name}
               />
               <div>
                 <p className="font-medium text-sm">{b.name}</p>

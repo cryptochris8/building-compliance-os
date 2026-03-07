@@ -60,6 +60,7 @@ export function FuelBreakdownChart({ breakdownByFuel, totalEmissions }: FuelBrea
       </CardHeader>
       <CardContent>
         <div className="relative">
+          <div role="img" aria-label="Pie chart showing emissions breakdown by fuel type">
           <ResponsiveContainer width="100%" height={350}>
             <PieChart>
               <Pie
@@ -82,6 +83,7 @@ export function FuelBreakdownChart({ breakdownByFuel, totalEmissions }: FuelBrea
               <Legend />
             </PieChart>
           </ResponsiveContainer>
+          </div>
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center">
               <p className="text-2xl font-bold">{totalEmissions.toFixed(2)}</p>

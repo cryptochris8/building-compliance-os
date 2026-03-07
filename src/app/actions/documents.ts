@@ -6,6 +6,7 @@ import { documents } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getAuthUser, assertBuildingAccess } from '@/lib/auth/helpers';
 
 // ============================================================
 // Zod Validation Schema for Document Upload
@@ -24,16 +25,6 @@ export const documentFormSchema = z.object({
 export type DocumentFormValues = z.infer<typeof documentFormSchema>;
 
 // ============================================================
-// Helper: Get authenticated user
-// ============================================================
-
-async function getAuthUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
-
-// ============================================================
 // Upload Document (create metadata record)
 // ============================================================
 
@@ -49,6 +40,10 @@ export async function uploadDocument(formData: DocumentFormValues) {
   }
 
   const data = validated.data;
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(data.buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
 
   try {
     const [document] = await db
@@ -81,6 +76,10 @@ export async function deleteDocument(id: string, buildingId: string) {
   if (!user) {
     return { error: 'Unauthorized' };
   }
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
 
   try {
     const [doc] = await db.select({ filePath: documents.filePath }).from(documents).where(eq(documents.id, id));

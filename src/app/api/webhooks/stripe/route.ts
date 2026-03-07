@@ -4,8 +4,16 @@ import { getStripe, tierFromPriceId } from '@/lib/stripe/client';
 import { db } from '@/lib/db';
 import { organizations, subscriptions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { webhookLimiter } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 100 webhook calls per minute per IP
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  const { success } = webhookLimiter.check(100, ip);
+  if (!success) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
   const stripe = getStripe();
   const body = await request.text();
   const sig = request.headers.get('stripe-signature');
@@ -42,24 +50,25 @@ export async function POST(request: NextRequest) {
         const priceId = sub.items.data[0]?.price?.id ?? '';
         const tier = tierFromPriceId(priceId);
 
-        // Upsert subscription record
-        await db.insert(subscriptions).values({
-          orgId,
-          stripeCustomerId: customerId,
-          stripeSubscriptionId: subscriptionId,
-          priceId,
-          status: sub.status === 'trialing' ? 'trialing' : 'active',
-          trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
-          currentPeriodEnd: sub.items.data[0] ? new Date(sub.items.data[0].current_period_end * 1000) : null,
-        });
-
-        // Update org tier and customer ID
-        await db.update(organizations)
-          .set({
-            subscriptionTier: tier === 'free' ? 'free' : tier,
+        // Upsert subscription + org tier atomically
+        await db.transaction(async (tx) => {
+          await tx.insert(subscriptions).values({
+            orgId,
             stripeCustomerId: customerId,
-          })
-          .where(eq(organizations.id, orgId));
+            stripeSubscriptionId: subscriptionId,
+            priceId,
+            status: sub.status === 'trialing' ? 'trialing' : 'active',
+            trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
+            currentPeriodEnd: sub.items.data[0] ? new Date(sub.items.data[0].current_period_end * 1000) : null,
+          });
+
+          await tx.update(organizations)
+            .set({
+              subscriptionTier: tier === 'free' ? 'free' : tier,
+              stripeCustomerId: customerId,
+            })
+            .where(eq(organizations.id, orgId));
+        });
         break;
       }
 
@@ -82,18 +91,20 @@ export async function POST(request: NextRequest) {
         };
         const mappedStatus = statusMap[sub.status] ?? 'active';
 
-        await db.update(subscriptions)
-          .set({
-            priceId,
-            status: mappedStatus,
-            trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
-            currentPeriodEnd: sub.items.data[0] ? new Date(sub.items.data[0].current_period_end * 1000) : null,
-          })
-          .where(eq(subscriptions.stripeSubscriptionId, sub.id));
+        await db.transaction(async (tx) => {
+          await tx.update(subscriptions)
+            .set({
+              priceId,
+              status: mappedStatus,
+              trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
+              currentPeriodEnd: sub.items.data[0] ? new Date(sub.items.data[0].current_period_end * 1000) : null,
+            })
+            .where(eq(subscriptions.stripeSubscriptionId, sub.id));
 
-        await db.update(organizations)
-          .set({ subscriptionTier: tier === 'free' ? 'free' : tier })
-          .where(eq(organizations.id, orgId));
+          await tx.update(organizations)
+            .set({ subscriptionTier: tier === 'free' ? 'free' : tier })
+            .where(eq(organizations.id, orgId));
+        });
         break;
       }
 
@@ -102,13 +113,15 @@ export async function POST(request: NextRequest) {
         const orgId = sub.metadata?.orgId;
         if (!orgId) break;
 
-        await db.update(subscriptions)
-          .set({ status: 'canceled' })
-          .where(eq(subscriptions.stripeSubscriptionId, sub.id));
+        await db.transaction(async (tx) => {
+          await tx.update(subscriptions)
+            .set({ status: 'canceled' })
+            .where(eq(subscriptions.stripeSubscriptionId, sub.id));
 
-        await db.update(organizations)
-          .set({ subscriptionTier: 'free' })
-          .where(eq(organizations.id, orgId));
+          await tx.update(organizations)
+            .set({ subscriptionTier: 'free' })
+            .where(eq(organizations.id, orgId));
+        });
         break;
       }
 

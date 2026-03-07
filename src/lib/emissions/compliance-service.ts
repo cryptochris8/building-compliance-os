@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { buildings, utilityReadings, utilityAccounts, complianceYears, deductions } from '@/lib/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
+import { unstable_cache } from 'next/cache';
 import {
   calculateBuildingEmissions,
   calculateEmissionsLimit,
@@ -43,6 +44,13 @@ export interface PortfolioBuildingRow {
   completeness: number;
 }
 
+/**
+ * Calculate and persist emissions compliance for a single building and year.
+ * Reads utility readings, calculates emissions by fuel type and month,
+ * determines compliance status against the applicable limit, and upserts
+ * the compliance_years record in a transaction.
+ * @throws If the building is not found or the compliance year is locked.
+ */
 export async function calculateBuildingCompliance(
   buildingId: string,
   year: number
@@ -119,68 +127,95 @@ export async function calculateBuildingCompliance(
     breakdownByMonth: emissionsResult.breakdownByMonth,
   };
 
-  const existing = await db.select({ id: complianceYears.id }).from(complianceYears)
-    .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year))).limit(1);
+  // Upsert compliance year in a transaction
+  await db.transaction(async (tx) => {
+    const existing = await tx.select({ id: complianceYears.id }).from(complianceYears)
+      .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year))).limit(1);
 
-  // Calculate deductions
-  let totalDeductionsTco2e = 0;
-  if (existing.length > 0) {
-    const deds = await db.select({ amountTco2e: deductions.amountTco2e })
-      .from(deductions).where(eq(deductions.complianceYearId, existing[0].id));
-    totalDeductionsTco2e = deds.reduce((sum, d) => sum + Number(d.amountTco2e || 0), 0);
-  }
+    // Calculate deductions
+    let totalDeductionsTco2e = 0;
+    if (existing.length > 0) {
+      const deds = await tx.select({ amountTco2e: deductions.amountTco2e })
+        .from(deductions).where(eq(deductions.complianceYearId, existing[0].id));
+      totalDeductionsTco2e = deds.reduce((sum, d) => sum + Number(d.amountTco2e || 0), 0);
+    }
 
-  const netEmissions = Math.max(0, emissionsResult.totalEmissionsTco2e - totalDeductionsTco2e);
+    const netEmissions = Math.max(0, emissionsResult.totalEmissionsTco2e - totalDeductionsTco2e);
 
-  const complianceData = {
-    buildingId, year, jurisdictionId,
-    totalEmissionsTco2e: String(result.totalEmissionsTco2e),
-    emissionsLimitTco2e: String(result.emissionsLimitTco2e),
-    emissionsOverLimit: String(result.emissionsOverLimit),
-    estimatedPenaltyDollars: String(result.estimatedPenaltyDollars),
-    status: result.status as 'incomplete' | 'compliant' | 'at_risk' | 'over_limit',
-    dataCompletenessPct: String(result.dataCompletenessPct),
-    missingMonths: result.missingMonths,
-    totalDeductionsTco2e: String(Math.round(totalDeductionsTco2e * 1000) / 1000),
-    netEmissionsTco2e: String(Math.round(netEmissions * 1000) / 1000),
-    updatedAt: new Date(),
-  };
+    const complianceData = {
+      buildingId, year, jurisdictionId,
+      totalEmissionsTco2e: String(result.totalEmissionsTco2e),
+      emissionsLimitTco2e: String(result.emissionsLimitTco2e),
+      emissionsOverLimit: String(result.emissionsOverLimit),
+      estimatedPenaltyDollars: String(result.estimatedPenaltyDollars),
+      status: result.status as 'incomplete' | 'compliant' | 'at_risk' | 'over_limit',
+      dataCompletenessPct: String(result.dataCompletenessPct),
+      missingMonths: result.missingMonths,
+      totalDeductionsTco2e: String(Math.round(totalDeductionsTco2e * 1000) / 1000),
+      netEmissionsTco2e: String(Math.round(netEmissions * 1000) / 1000),
+      updatedAt: new Date(),
+    };
 
-  if (existing.length > 0) {
-    await db.update(complianceYears).set(complianceData).where(eq(complianceYears.id, existing[0].id));
-  } else {
-    await db.insert(complianceYears).values(complianceData);
-  }
+    if (existing.length > 0) {
+      await tx.update(complianceYears).set(complianceData).where(eq(complianceYears.id, existing[0].id));
+    } else {
+      await tx.insert(complianceYears).values(complianceData);
+    }
+  });
+
   return result;
 }
 
+/**
+ * Recalculate compliance for all buildings in an organization for a given year.
+ * Skips locked compliance years and logs errors for individual failures.
+ */
 export async function recalculateAllBuildings(orgId: string, year: number): Promise<ComplianceResultWithBreakdown[]> {
   const orgBuildings = await db.select({ id: buildings.id }).from(buildings).where(eq(buildings.organizationId, orgId));
   const results: ComplianceResultWithBreakdown[] = [];
   for (const b of orgBuildings) {
-    try { const r = await calculateBuildingCompliance(b.id, year); results.push(r); } catch { /* skip */ }
+    try {
+      const r = await calculateBuildingCompliance(b.id, year);
+      results.push(r);
+    } catch (err) {
+      console.error('Failed to calculate compliance for building ' + b.id + ':', err instanceof Error ? err.message : err);
+    }
   }
   return results;
 }
 
-export async function getComplianceSummary(orgId: string, year: number): Promise<PortfolioSummary> {
-  const orgBuildings = await db.select({
-    id: buildings.id, name: buildings.name, addressLine1: buildings.addressLine1,
-    city: buildings.city, state: buildings.state, zip: buildings.zip, grossSqft: buildings.grossSqft,
-  }).from(buildings).where(eq(buildings.organizationId, orgId));
+async function _getComplianceSummary(orgId: string, year: number): Promise<PortfolioSummary> {
+  // Single query with LEFT JOIN instead of N+1
+  const rows = await db.select({
+    id: buildings.id,
+    name: buildings.name,
+    addressLine1: buildings.addressLine1,
+    city: buildings.city,
+    state: buildings.state,
+    zip: buildings.zip,
+    grossSqft: buildings.grossSqft,
+    cyStatus: complianceYears.status,
+    cyEmissions: complianceYears.totalEmissionsTco2e,
+    cyLimit: complianceYears.emissionsLimitTco2e,
+    cyPenalty: complianceYears.estimatedPenaltyDollars,
+    cyCompleteness: complianceYears.dataCompletenessPct,
+  }).from(buildings)
+    .leftJoin(complianceYears, and(
+      eq(complianceYears.buildingId, buildings.id),
+      eq(complianceYears.year, year)
+    ))
+    .where(eq(buildings.organizationId, orgId));
 
   const buildingRows: PortfolioBuildingRow[] = [];
   let compliantCount = 0, atRiskCount = 0, overLimitCount = 0, incompleteCount = 0;
   let totalPenaltyExposure = 0, totalEmissions = 0;
 
-  for (const b of orgBuildings) {
-    const [cy] = await db.select().from(complianceYears)
-      .where(and(eq(complianceYears.buildingId, b.id), eq(complianceYears.year, year))).limit(1);
-    const emissions = cy ? Number(cy.totalEmissionsTco2e || 0) : 0;
-    const limit = cy ? Number(cy.emissionsLimitTco2e || 0) : 0;
-    const penalty = cy ? Number(cy.estimatedPenaltyDollars || 0) : 0;
-    const status = cy?.status || 'incomplete';
-    const completeness = cy ? Number(cy.dataCompletenessPct || 0) : 0;
+  for (const row of rows) {
+    const emissions = Number(row.cyEmissions || 0);
+    const limit = Number(row.cyLimit || 0);
+    const penalty = Number(row.cyPenalty || 0);
+    const status = row.cyStatus || 'incomplete';
+    const completeness = Number(row.cyCompleteness || 0);
 
     if (status === 'compliant') compliantCount++;
     else if (status === 'at_risk') atRiskCount++;
@@ -190,17 +225,29 @@ export async function getComplianceSummary(orgId: string, year: number): Promise
     totalEmissions += emissions;
 
     buildingRows.push({
-      id: b.id, name: b.name,
-      address: b.addressLine1 + ', ' + b.city + ', ' + b.state + ' ' + b.zip,
-      grossSqft: Number(b.grossSqft), status, totalEmissions: emissions,
+      id: row.id, name: row.name,
+      address: row.addressLine1 + ', ' + row.city + ', ' + row.state + ' ' + row.zip,
+      grossSqft: Number(row.grossSqft), status, totalEmissions: emissions,
       emissionsLimit: limit, overUnder: emissions - limit, penalty, completeness,
     });
   }
 
   return {
-    totalBuildings: orgBuildings.length, compliantCount, atRiskCount, overLimitCount, incompleteCount,
+    totalBuildings: rows.length, compliantCount, atRiskCount, overLimitCount, incompleteCount,
     totalPenaltyExposure: Math.round(totalPenaltyExposure * 100) / 100,
     totalEmissions: Math.round(totalEmissions * 1000) / 1000,
     buildings: buildingRows,
   };
+}
+
+/**
+ * Get portfolio compliance summary for an organization and year.
+ * Results are cached for 5 minutes, tagged for revalidation when data changes.
+ */
+export function getComplianceSummary(orgId: string, year: number): Promise<PortfolioSummary> {
+  return unstable_cache(
+    () => _getComplianceSummary(orgId, year),
+    ['portfolio-summary', orgId, String(year)],
+    { revalidate: 300, tags: ['portfolio-summary-' + orgId + '-' + year] }
+  )();
 }

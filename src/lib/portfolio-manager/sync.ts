@@ -8,6 +8,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import { PMClient } from "./client";
 import { PM_METER_TYPE_MAP, PM_UNIT_MAP } from "./types";
+import { decrypt } from "@/lib/auth/encryption";
 
 /** Map PM meter type to local utility type */
 export function mapPMToLocalUtilityType(pmMeterType: string): string {
@@ -30,7 +31,7 @@ export async function syncProperties(orgId: string) {
   if (!conn) throw new Error("No PM connection found for organization");
 
   const client = new PMClient();
-  client.setAuth(conn.pmUsername, conn.pmPasswordEncrypted);
+  client.setAuth(conn.pmUsername, decrypt(conn.pmPasswordEncrypted));
 
   const properties = await client.getProperties();
 
@@ -46,8 +47,8 @@ export async function syncProperties(orgId: string) {
           prop.yearBuilt = details.yearBuilt;
           prop.primaryFunction = details.primaryFunction;
         }
-      } catch {
-        // Skip failed detail fetches
+      } catch (err) {
+        console.error('Failed to fetch PM property details for ' + prop.id + ':', err instanceof Error ? err.message : err);
       }
     }
 
@@ -101,7 +102,7 @@ export async function syncMeterData(
   if (!conn) throw new Error("No PM connection found");
 
   const client = new PMClient();
-  client.setAuth(conn.pmUsername, conn.pmPasswordEncrypted);
+  client.setAuth(conn.pmUsername, decrypt(conn.pmPasswordEncrypted));
 
   const meters = await client.getMeters(pmPropertyId);
   let importedCount = 0;
@@ -178,12 +179,16 @@ export async function syncMeterData(
             confidence: "confirmed",
           });
           importedCount++;
-        } catch {
-          // Duplicate - skip
+        } catch (err) {
+          // Expected: duplicate readings from unique constraint - log only unexpected errors
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!msg.includes('unique') && !msg.includes('duplicate')) {
+            console.error('Failed to insert PM reading:', msg);
+          }
         }
       }
-    } catch {
-      // Skip failed meter data fetches
+    } catch (err) {
+      console.error('Failed to fetch meter data for meter:', err instanceof Error ? err.message : err);
     }
   }
 

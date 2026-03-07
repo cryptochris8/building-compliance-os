@@ -1,9 +1,5 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
-import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
 import {
   calculateBuildingCompliance,
   recalculateAllBuildings,
@@ -11,27 +7,15 @@ import {
   type ComplianceResultWithBreakdown,
   type PortfolioSummary,
 } from '@/lib/emissions/compliance-service';
-
-async function getAuthUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
-
-async function getUserOrgId(): Promise<string | null> {
-  const authUser = await getAuthUser();
-  if (!authUser) return null;
-  const [dbUser] = await db.select({ organizationId: users.organizationId })
-    .from(users).where(eq(users.id, authUser.id)).limit(1);
-  return dbUser?.organizationId || null;
-}
+import { assertBuildingAccess, getUserOrgId } from '@/lib/auth/helpers';
 
 export async function calculateCompliance(
   buildingId: string,
   year: number
 ): Promise<{ data?: ComplianceResultWithBreakdown; error?: string }> {
-  const user = await getAuthUser();
-  if (!user) return { error: 'Unauthorized' };
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
 
   try {
     const result = await calculateBuildingCompliance(buildingId, year);

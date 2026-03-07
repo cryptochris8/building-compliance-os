@@ -14,7 +14,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, FileText, Trash2, Download, Image, Eye } from "lucide-react";
+import { Plus, FileText, Trash2, Download, Image as ImageIcon, Eye } from "lucide-react";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { deleteDocument } from "@/app/actions/documents";
 
@@ -190,7 +190,7 @@ export default function DocumentsPage() {
                   <TableRow key={doc.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {isImageFile(doc.fileType) ? <Image className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
+                        {isImageFile(doc.fileType) ? <ImageIcon className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
                         {doc.fileName}
                       </div>
                     </TableCell>

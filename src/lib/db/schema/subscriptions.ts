@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { organizations } from './index';
 
@@ -24,7 +24,10 @@ export const subscriptions = pgTable('subscriptions', {
   trialEnd: timestamp('trial_end', { withTimezone: true }),
   currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index('idx_subscriptions_org_id').on(table.orgId),
+  index('idx_subscriptions_stripe_sub_id').on(table.stripeSubscriptionId),
+]);
 
 export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
   organization: one(organizations, {

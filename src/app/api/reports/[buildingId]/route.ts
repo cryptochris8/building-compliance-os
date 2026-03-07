@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { buildings, organizations, complianceYears, utilityAccounts, utilityReadings, deductions, documents } from "@/lib/db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
@@ -7,17 +6,26 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { ComplianceReportDocument } from "@/lib/reports/compliance-report";
 import type { ReportData } from "@/lib/reports/compliance-report";
+import { assertBuildingAccess } from "@/lib/auth/helpers";
+import { apiLimiter } from "@/lib/rate-limit";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ buildingId: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { buildingId } = await params;
+
+    // Rate limit: 10 report generations per minute per building
+    const { success } = apiLimiter.check(10, 'report:' + buildingId);
+    if (!success) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+
+    // Verify building ownership
+    const access = await assertBuildingAccess(buildingId);
+    if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const url = new URL(request.url);
     const year = parseInt(url.searchParams.get("year") || String(new Date().getFullYear()));
 
@@ -48,8 +56,8 @@ export async function GET(
       .where(
         and(
           eq(utilityReadings.buildingId, buildingId),
-          sql.raw("period_start >= '" + yearStart + "'"),
-          sql.raw("period_end <= '" + yearEnd + "'")
+          sql`${utilityReadings.periodStart} >= ${yearStart}`,
+          sql`${utilityReadings.periodEnd} <= ${yearEnd}`
         )
       );
 
@@ -166,6 +174,7 @@ export async function GET(
     };
 
     const element = React.createElement(ComplianceReportDocument, { data: reportData });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfBuffer = await renderToBuffer(element as any);
 
     const safeName = building.name.replace(/[^a-zA-Z0-9]/g, "_");
@@ -175,7 +184,7 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=" + fileName,
+        "Content-Disposition": 'attachment; filename="' + fileName + '"',
       },
     });
   } catch (error) {

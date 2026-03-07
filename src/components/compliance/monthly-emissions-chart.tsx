@@ -87,6 +87,7 @@ export function MonthlyEmissionsChart({
         <CardTitle>Monthly Emissions Trend ({year})</CardTitle>
       </CardHeader>
       <CardContent>
+        <div role="img" aria-label="Bar chart showing monthly emissions with limit reference line">
         <ResponsiveContainer width="100%" height={400}>
           <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -115,6 +116,7 @@ export function MonthlyEmissionsChart({
             />
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { buildings, complianceYears, utilityReadings, utilityAccounts, documents, complianceActivities, deductions } from "@/lib/db/schema";
+import { buildings, complianceYears, utilityReadings, utilityAccounts, documents, complianceActivities } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { ComplianceDetailClient } from "@/components/compliance/compliance-detail-client";
 import { ComplianceChecklist } from "@/components/compliance/compliance-checklist";

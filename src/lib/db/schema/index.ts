@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, numeric, integer, boolean, timestamp, date, jsonb, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, numeric, integer, boolean, timestamp, date, jsonb, pgEnum, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -30,7 +30,9 @@ export const users = pgTable('users', {
   fullName: text('full_name'),
   email: text('email').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index('idx_users_org_id').on(table.organizationId),
+]);
 
 // Buildings
 export const buildings = pgTable('buildings', {
@@ -54,7 +56,9 @@ export const buildings = pgTable('buildings', {
   occupancyMix: jsonb('occupancy_mix'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index('idx_buildings_org_id').on(table.organizationId),
+]);
 
 // Utility Accounts
 export const utilityAccounts = pgTable('utility_accounts', {
@@ -67,7 +71,9 @@ export const utilityAccounts = pgTable('utility_accounts', {
   tenantName: text('tenant_name'),
   tenantUnit: text('tenant_unit'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index('idx_utility_accounts_building_id').on(table.buildingId),
+]);
 
 // Utility Readings
 export const utilityReadings = pgTable('utility_readings', {
@@ -85,6 +91,7 @@ export const utilityReadings = pgTable('utility_readings', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => [
   uniqueIndex('unique_reading').on(table.utilityAccountId, table.periodStart, table.periodEnd),
+  index('idx_utility_readings_building_id').on(table.buildingId),
 ]);
 
 // Compliance Years
@@ -129,7 +136,10 @@ export const documents = pgTable('documents', {
   documentType: documentTypeEnum('document_type'),
   uploadedBy: uuid('uploaded_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index('idx_documents_building_id').on(table.buildingId),
+  index('idx_documents_compliance_year_id').on(table.complianceYearId),
+]);
 
 // Import Jobs
 export const importJobs = pgTable('import_jobs', {
@@ -145,7 +155,9 @@ export const importJobs = pgTable('import_jobs', {
   errorLog: jsonb('error_log'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
-});
+}, (table) => [
+  index('idx_import_jobs_org_id').on(table.organizationId),
+]);
 
 // Phase 4: Compliance Activities
 export const complianceActivities = pgTable('compliance_activities', {
@@ -158,7 +170,9 @@ export const complianceActivities = pgTable('compliance_activities', {
   actorId: uuid('actor_id').references(() => users.id),
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index('idx_compliance_activities_building_id').on(table.buildingId),
+]);
 
 // Phase 4: Deductions
 export const deductions = pgTable('deductions', {
@@ -172,7 +186,9 @@ export const deductions = pgTable('deductions', {
   documentationId: uuid('documentation_id').references(() => documents.id),
   verified: boolean('verified').default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index('idx_deductions_compliance_year_id').on(table.complianceYearId),
+]);
 
 // Relations
 export const organizationsRelations = relations(organizations, ({ many }) => ({

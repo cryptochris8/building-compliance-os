@@ -1,43 +1,28 @@
 'use server';
 
-import { z } from 'zod';
 import { db } from '@/lib/db';
-import { complianceYears, complianceActivities, buildings, users } from '@/lib/db/schema';
+import { complianceYears, complianceActivities } from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service';
-
-async function getAuthUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
-
-async function getUserOrgId(): Promise<string | null> {
-  const authUser = await getAuthUser();
-  if (!authUser) return null;
-  const [dbUser] = await db.select({ organizationId: users.organizationId })
-    .from(users).where(eq(users.id, authUser.id)).limit(1);
-  return dbUser?.organizationId || null;
-}
+import { getAuthUser, assertBuildingAccess, getAuthContext, filterAuthorizedBuildingIds } from '@/lib/auth/helpers';
 
 async function logActivity(
   buildingId: string,
   complianceYearId: string | null,
   activityType: 'note' | 'status_change' | 'calculation' | 'document_upload' | 'checklist_update' | 'lock_change' | 'deduction_change',
   description: string,
+  actorId: string,
+  orgId: string,
   metadata?: Record<string, unknown>
 ) {
-  const user = await getAuthUser();
-  const orgId = await getUserOrgId();
   await db.insert(complianceActivities).values({
     buildingId,
     complianceYearId,
     orgId,
     activityType,
     description,
-    actorId: user?.id,
+    actorId,
     metadata: metadata || null,
   });
 }
@@ -47,8 +32,12 @@ export async function updateChecklist(
   year: number,
   checklistState: Record<string, boolean | string>
 ): Promise<{ error?: string }> {
-  const user = await getAuthUser();
-  if (!user) return { error: 'Unauthorized' };
+  const ctx = await getAuthContext();
+  if (!ctx) return { error: 'Unauthorized' };
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select().from(complianceYears)
     .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
@@ -70,8 +59,9 @@ export async function updateChecklist(
     }).where(eq(complianceYears.id, cy.id));
   }
 
-  await logActivity(buildingId, cy.id, 'checklist_update', 'Checklist updated for ' + year, checklistState);
+  await logActivity(buildingId, cy.id, 'checklist_update', 'Checklist updated for ' + year, ctx.user.id, access.orgId, checklistState);
   revalidatePath('/buildings/' + buildingId + '/compliance');
+  revalidateTag('portfolio-summary-' + access.orgId + '-' + year, 'max');
   return {};
 }
 
@@ -79,8 +69,12 @@ export async function lockComplianceYear(
   buildingId: string,
   year: number
 ): Promise<{ error?: string }> {
-  const user = await getAuthUser();
-  if (!user) return { error: 'Unauthorized' };
+  const ctx = await getAuthContext();
+  if (!ctx) return { error: 'Unauthorized' };
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select().from(complianceYears)
     .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
@@ -91,12 +85,13 @@ export async function lockComplianceYear(
   await db.update(complianceYears).set({
     locked: true,
     lockedAt: new Date(),
-    lockedBy: user.id,
+    lockedBy: ctx.user.id,
     updatedAt: new Date(),
   }).where(eq(complianceYears.id, cy.id));
 
-  await logActivity(buildingId, cy.id, 'lock_change', 'Compliance year ' + year + ' locked');
+  await logActivity(buildingId, cy.id, 'lock_change', 'Compliance year ' + year + ' locked', ctx.user.id, access.orgId);
   revalidatePath('/buildings/' + buildingId + '/compliance');
+  revalidateTag('portfolio-summary-' + access.orgId + '-' + year, 'max');
   return {};
 }
 
@@ -105,8 +100,12 @@ export async function unlockComplianceYear(
   year: number,
   reason: string
 ): Promise<{ error?: string }> {
-  const user = await getAuthUser();
-  if (!user) return { error: 'Unauthorized' };
+  const ctx = await getAuthContext();
+  if (!ctx) return { error: 'Unauthorized' };
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select().from(complianceYears)
     .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
@@ -120,8 +119,9 @@ export async function unlockComplianceYear(
     updatedAt: new Date(),
   }).where(eq(complianceYears.id, cy.id));
 
-  await logActivity(buildingId, cy.id, 'lock_change', 'Compliance year ' + year + ' unlocked. Reason: ' + reason);
+  await logActivity(buildingId, cy.id, 'lock_change', 'Compliance year ' + year + ' unlocked. Reason: ' + reason, ctx.user.id, access.orgId);
   revalidatePath('/buildings/' + buildingId + '/compliance');
+  revalidateTag('portfolio-summary-' + access.orgId + '-' + year, 'max');
   return {};
 }
 
@@ -130,14 +130,18 @@ export async function addComplianceNote(
   year: number,
   content: string
 ): Promise<{ error?: string }> {
-  const user = await getAuthUser();
-  if (!user) return { error: 'Unauthorized' };
+  const ctx = await getAuthContext();
+  if (!ctx) return { error: 'Unauthorized' };
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select({ id: complianceYears.id }).from(complianceYears)
     .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
     .limit(1);
 
-  await logActivity(buildingId, cy?.id || null, 'note', content);
+  await logActivity(buildingId, cy?.id || null, 'note', content, ctx.user.id, access.orgId);
   revalidatePath('/buildings/' + buildingId + '/compliance');
   return {};
 }
@@ -146,24 +150,32 @@ export async function bulkMarkSubmitted(
   buildingIds: string[],
   year: number
 ): Promise<{ error?: string; successCount?: number }> {
-  const user = await getAuthUser();
-  if (!user) return { error: 'Unauthorized' };
+  // Verify all building IDs belong to the user's org
+  const auth = await filterAuthorizedBuildingIds(buildingIds);
+  if (!auth) return { error: 'Unauthorized' };
+
+  if (auth.authorizedIds.length === 0) {
+    revalidatePath('/compliance');
+    return { successCount: 0 };
+  }
+
+  // Batch query: fetch all compliance years for authorized buildings in one query
+  const allCy = await db.select().from(complianceYears)
+    .where(and(
+      inArray(complianceYears.buildingId, auth.authorizedIds),
+      eq(complianceYears.year, year)
+    ));
+
+  const updatableIds = allCy.filter(cy => !cy.locked).map(cy => cy.id);
 
   let successCount = 0;
-  for (const buildingId of buildingIds) {
-    const [cy] = await db.select().from(complianceYears)
-      .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
-      .limit(1);
-
-    if (cy && !cy.locked) {
-      await db.update(complianceYears).set({
-        reportSubmitted: true,
-        reportSubmittedAt: new Date(),
-        updatedAt: new Date(),
-      }).where(eq(complianceYears.id, cy.id));
-      await logActivity(buildingId, cy.id, 'status_change', 'Report marked as submitted (bulk action)');
-      successCount++;
-    }
+  if (updatableIds.length > 0) {
+    await db.update(complianceYears).set({
+      reportSubmitted: true,
+      reportSubmittedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(inArray(complianceYears.id, updatableIds));
+    successCount = updatableIds.length;
   }
 
   revalidatePath('/compliance');
@@ -174,23 +186,33 @@ export async function bulkRecalculate(
   buildingIds: string[],
   year: number
 ): Promise<{ error?: string; successCount?: number }> {
-  const user = await getAuthUser();
-  if (!user) return { error: 'Unauthorized' };
+  // Verify all building IDs belong to the user's org
+  const auth = await filterAuthorizedBuildingIds(buildingIds);
+  if (!auth) return { error: 'Unauthorized' };
+
+  if (auth.authorizedIds.length === 0) {
+    revalidatePath('/compliance');
+    return { successCount: 0 };
+  }
+
+  // Batch query to find locked buildings, then only recalculate unlocked ones
+  const lockedCy = await db.select({ buildingId: complianceYears.buildingId })
+    .from(complianceYears)
+    .where(and(
+      inArray(complianceYears.buildingId, auth.authorizedIds),
+      eq(complianceYears.year, year),
+      eq(complianceYears.locked, true)
+    ));
+  const lockedIds = new Set(lockedCy.map(cy => cy.buildingId));
 
   let successCount = 0;
-  for (const buildingId of buildingIds) {
-    const [cy] = await db.select().from(complianceYears)
-      .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
-      .limit(1);
-
-    if (cy?.locked) continue;
-
+  for (const buildingId of auth.authorizedIds) {
+    if (lockedIds.has(buildingId)) continue;
     try {
       await calculateBuildingCompliance(buildingId, year);
-      await logActivity(buildingId, cy?.id || null, 'calculation', 'Emissions recalculated (bulk action)');
       successCount++;
-    } catch {
-      // Skip failures
+    } catch (err) {
+      console.error('Failed to recalculate building ' + buildingId + ':', err instanceof Error ? err.message : err);
     }
   }
 
@@ -199,19 +221,14 @@ export async function bulkRecalculate(
 }
 
 export async function getComplianceActivities(
-  buildingId: string,
-  year?: number
+  buildingId: string
 ) {
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized', data: [] };
 
-  let cyId: string | undefined;
-  if (year) {
-    const [cy] = await db.select({ id: complianceYears.id }).from(complianceYears)
-      .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
-      .limit(1);
-    cyId = cy?.id;
-  }
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: 'Building not found or access denied', data: [] };
 
   const activities = await db.select({
     id: complianceActivities.id,

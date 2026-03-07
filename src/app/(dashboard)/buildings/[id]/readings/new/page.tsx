@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ReadingForm } from "@/components/readings/reading-form";
 import { createReading, type ReadingFormValues } from "@/app/actions/readings";
 import { getUtilityAccountsForBuilding } from "@/app/actions/utility-accounts";
+import { toast } from "sonner";
 
 export default function NewReadingPage() {
   const params = useParams();
@@ -30,12 +31,14 @@ export default function NewReadingPage() {
     try {
       const result = await createReading(values);
       if (result.error) {
-        alert(result.error);
+        toast.error(result.error);
       } else {
+        toast.success("Reading added successfully");
         router.push("/buildings/" + buildingId + "/readings");
       }
-    } catch {
-      alert("Failed to create reading");
+    } catch (err) {
+      console.error('Failed to create reading:', err);
+      toast.error("Failed to create reading");
     } finally {
       setIsSubmitting(false);
     }

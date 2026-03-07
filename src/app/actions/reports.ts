@@ -1,27 +1,17 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { users, buildings, complianceYears } from "@/lib/db/schema";
+import { buildings, complianceYears } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { createClient } from "@/lib/supabase/server";
-
-async function getAuthUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
-
-async function getUserOrgId(): Promise<string | null> {
-  const authUser = await getAuthUser();
-  if (!authUser) return null;
-  const [dbUser] = await db.select({ organizationId: users.organizationId })
-    .from(users).where(eq(users.id, authUser.id)).limit(1);
-  return dbUser?.organizationId || null;
-}
+import { getAuthUser, assertBuildingAccess, getUserOrgId } from "@/lib/auth/helpers";
 
 export async function getReportHistory(buildingId: string) {
   const authUser = await getAuthUser();
   if (!authUser) return [];
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return [];
 
   const years = await db.select({
     id: complianceYears.id,
@@ -44,6 +34,10 @@ export async function getAvailableYears(buildingId: string) {
   const authUser = await getAuthUser();
   if (!authUser) return [];
 
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return [];
+
   const years = await db.select({ year: complianceYears.year })
     .from(complianceYears)
     .where(eq(complianceYears.buildingId, buildingId))
@@ -56,11 +50,16 @@ export async function markReportSubmitted(buildingId: string, year: number) {
   const authUser = await getAuthUser();
   if (!authUser) return { error: "Unauthorized" };
 
+  // Verify building ownership
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: "Building not found or access denied" };
+
   const [cy] = await db.select().from(complianceYears)
     .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
     .limit(1);
 
   if (!cy) return { error: "Compliance year not found" };
+  if (cy.locked) return { error: "Compliance year is locked" };
 
   await db.update(complianceYears).set({
     reportSubmitted: true,

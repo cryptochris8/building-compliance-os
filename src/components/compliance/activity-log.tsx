@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +47,6 @@ export function ActivityLog({
   year: number;
 }) {
   const [noteText, setNoteText] = useState("");
-  const [, startTransition] = useTransition();
   const [submitting, setSubmitting] = useState(false);
 
   const handleAddNote = async () => {

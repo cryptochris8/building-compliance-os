@@ -1,22 +1,23 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db';
 import { complianceYears } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service';
+import { assertBuildingAccess } from '@/lib/auth/helpers';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ buildingId: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const { buildingId } = await params;
+
+    // Verify building ownership
+    const access = await assertBuildingAccess(buildingId);
+    if (!access) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { buildingId } = await params;
     const url = new URL(request.url);
     const yearParam = url.searchParams.get('year');
 
@@ -51,13 +52,14 @@ export async function POST(
   { params }: { params: Promise<{ buildingId: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const { buildingId } = await params;
+
+    // Verify building ownership
+    const access = await assertBuildingAccess(buildingId);
+    if (!access) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { buildingId } = await params;
     const year = new Date().getFullYear();
     const result = await calculateBuildingCompliance(buildingId, year);
     return NextResponse.json(result);

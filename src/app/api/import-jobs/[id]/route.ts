@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { importJobs } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { createClient } from "@/lib/supabase/server";
+import { eq, and } from "drizzle-orm";
+import { getUserOrgId } from "@/lib/auth/helpers";
 
 export async function GET(
   _request: NextRequest,
@@ -11,17 +11,17 @@ export async function GET(
   try {
     const { id } = await params;
 
-    // Auth check
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    // Verify user is authenticated and get their org
+    const orgId = await getUserOrgId();
+    if (!orgId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Only return jobs belonging to the user's organization
     const jobs = await db
       .select()
       .from(importJobs)
-      .where(eq(importJobs.id, id));
+      .where(and(eq(importJobs.id, id), eq(importJobs.organizationId, orgId)));
 
     if (jobs.length === 0) {
       return NextResponse.json({ error: "Import job not found" }, { status: 404 });
