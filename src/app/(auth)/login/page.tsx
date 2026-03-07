@@ -12,7 +12,11 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/dashboard";
+  const rawRedirect = searchParams.get("redirect") || "/dashboard";
+  // Sanitize redirect to prevent open redirects
+  const redirect = rawRedirect.startsWith("/") && !rawRedirect.startsWith("//") && !rawRedirect.startsWith("/\\") && !rawRedirect.includes("://")
+    ? rawRedirect
+    : "/dashboard";
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();

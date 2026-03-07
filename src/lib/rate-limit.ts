@@ -1,13 +1,36 @@
 /**
- * Create an in-memory sliding window rate limiter.
- * @param options.interval - Time window in milliseconds
- * @param options.uniqueTokenPerInterval - Max number of unique tokens tracked (prevents memory leaks)
- * @returns Object with a `check(limit, token)` method that returns `{ success, remaining }`
+ * Serverless-compatible rate limiter.
+ *
+ * PRODUCTION NOTE: In multi-instance deployments (Vercel serverless),
+ * in-memory rate limiting provides per-instance protection only.
+ * For production, replace with @upstash/ratelimit:
+ *
+ *   import { Ratelimit } from "@upstash/ratelimit";
+ *   import { Redis } from "@upstash/redis";
+ *   export const apiLimiter = new Ratelimit({
+ *     redis: Redis.fromEnv(),
+ *     limiter: Ratelimit.slidingWindow(10, "60 s"),
+ *   });
+ *
+ * The check() API below is designed to be compatible with @upstash/ratelimit's
+ * limit() return shape for easy migration.
  */
-const rateLimit = (options: { interval: number; uniqueTokenPerInterval: number }) => {
+
+interface RateLimitResult {
+  success: boolean;
+  remaining: number;
+}
+
+interface RateLimiterOptions {
+  /** Time window in milliseconds */
+  interval: number;
+  /** Max unique tokens tracked (prevents memory leaks) */
+  uniqueTokenPerInterval: number;
+}
+
+function createRateLimiter(options: RateLimiterOptions) {
   const tokenCounts = new Map<string, { count: number; resetTime: number }>();
 
-  // Periodic cleanup to prevent memory leaks
   const cleanup = () => {
     const now = Date.now();
     for (const [key, value] of tokenCounts) {
@@ -17,13 +40,16 @@ const rateLimit = (options: { interval: number; uniqueTokenPerInterval: number }
     }
   };
 
-  // Cleanup every interval
+  // Periodic cleanup using unref'd timer to avoid holding the process open
   if (typeof setInterval !== 'undefined') {
-    setInterval(cleanup, options.interval);
+    const timer = setInterval(cleanup, options.interval);
+    if (typeof timer === 'object' && 'unref' in timer) {
+      timer.unref();
+    }
   }
 
   return {
-    check: (limit: number, token: string): { success: boolean; remaining: number } => {
+    check: (limit: number, token: string): RateLimitResult => {
       const now = Date.now();
       const entry = tokenCounts.get(token);
 
@@ -47,20 +73,20 @@ const rateLimit = (options: { interval: number; uniqueTokenPerInterval: number }
       return { success: true, remaining: limit - entry.count };
     },
   };
-};
+}
 
 // Rate limiters for different endpoint types
-export const apiLimiter = rateLimit({
+export const apiLimiter = createRateLimiter({
   interval: 60 * 1000, // 1 minute
   uniqueTokenPerInterval: 500,
 });
 
-export const authLimiter = rateLimit({
+export const authLimiter = createRateLimiter({
   interval: 15 * 60 * 1000, // 15 minutes
   uniqueTokenPerInterval: 500,
 });
 
-export const webhookLimiter = rateLimit({
+export const webhookLimiter = createRateLimiter({
   interval: 60 * 1000, // 1 minute
   uniqueTokenPerInterval: 100,
 });

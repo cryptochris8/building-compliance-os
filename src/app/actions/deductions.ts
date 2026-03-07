@@ -108,7 +108,7 @@ export async function updateDeduction(id: string, data: DeductionFormValues) {
         description: data.description || null,
         amountTco2e: data.amountTco2e,
         documentationId: data.documentationId || null,
-      }).where(eq(deductions.id, id)).returning();
+      }).where(and(eq(deductions.id, id), eq(deductions.buildingId, data.buildingId))).returning();
 
       await updateDeductionTotals(data.complianceYearId, tx);
       return updated;
@@ -137,7 +137,7 @@ export async function deleteDeduction(id: string, buildingId: string, compliance
 
   try {
     await db.transaction(async (tx) => {
-      await tx.delete(deductions).where(eq(deductions.id, id));
+      await tx.delete(deductions).where(and(eq(deductions.id, id), eq(deductions.buildingId, buildingId)));
       await updateDeductionTotals(complianceYearId, tx);
     });
 

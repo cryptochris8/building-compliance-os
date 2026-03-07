@@ -6,12 +6,13 @@ import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { PMClient } from "@/lib/portfolio-manager/client";
 import { syncProperties, syncMeterData } from "@/lib/portfolio-manager/sync";
-import { getUserOrgId, assertBuildingAccess } from "@/lib/auth/helpers";
+import { getUserOrgId, assertBuildingAccess, assertRole } from "@/lib/auth/helpers";
 import { encrypt } from "@/lib/auth/encryption";
 
 export async function connectPM(formData: FormData) {
-  const orgId = await getUserOrgId();
-  if (!orgId) return { error: "Unauthorized" };
+  const ctx = await assertRole('owner', 'admin');
+  if (!ctx) return { error: "Unauthorized: owner or admin role required" };
+  const orgId = ctx.orgId;
 
   const username = formData.get("username") as string;
   const password = formData.get("password") as string;
@@ -49,8 +50,9 @@ export async function connectPM(formData: FormData) {
 }
 
 export async function disconnectPM() {
-  const orgId = await getUserOrgId();
-  if (!orgId) return { error: "Unauthorized" };
+  const ctx = await assertRole('owner', 'admin');
+  if (!ctx) return { error: "Unauthorized: owner or admin role required" };
+  const orgId = ctx.orgId;
 
   await db.delete(pmConnections).where(eq(pmConnections.orgId, orgId));
   revalidatePath("/settings/portfolio-manager");

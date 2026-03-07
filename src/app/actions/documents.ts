@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { documents } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthUser, assertBuildingAccess } from '@/lib/auth/helpers';
@@ -82,12 +82,14 @@ export async function deleteDocument(id: string, buildingId: string) {
   if (!access) return { error: 'Building not found or access denied' };
 
   try {
-    const [doc] = await db.select({ filePath: documents.filePath }).from(documents).where(eq(documents.id, id));
-    if (doc?.filePath) {
+    const [doc] = await db.select({ filePath: documents.filePath }).from(documents)
+      .where(and(eq(documents.id, id), eq(documents.buildingId, buildingId)));
+    if (!doc) return { error: 'Document not found or access denied' };
+    if (doc.filePath) {
       const supabase = await createClient();
       await supabase.storage.from('documents').remove([doc.filePath]);
     }
-    await db.delete(documents).where(eq(documents.id, id));
+    await db.delete(documents).where(and(eq(documents.id, id), eq(documents.buildingId, buildingId)));
     revalidatePath(`/buildings/${buildingId}/documents`);
     return { success: true };
   } catch (error) {

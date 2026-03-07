@@ -5,7 +5,7 @@ import { complianceYears, complianceActivities } from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service';
-import { getAuthUser, assertBuildingAccess, getAuthContext, filterAuthorizedBuildingIds } from '@/lib/auth/helpers';
+import { getAuthUser, assertBuildingAccess, getAuthContext, filterAuthorizedBuildingIds, assertRole } from '@/lib/auth/helpers';
 
 async function logActivity(
   buildingId: string,
@@ -69,8 +69,8 @@ export async function lockComplianceYear(
   buildingId: string,
   year: number
 ): Promise<{ error?: string }> {
-  const ctx = await getAuthContext();
-  if (!ctx) return { error: 'Unauthorized' };
+  const ctx = await assertRole('owner', 'admin');
+  if (!ctx) return { error: 'Unauthorized: owner or admin role required' };
 
   // Verify building ownership
   const access = await assertBuildingAccess(buildingId);
@@ -100,8 +100,8 @@ export async function unlockComplianceYear(
   year: number,
   reason: string
 ): Promise<{ error?: string }> {
-  const ctx = await getAuthContext();
-  if (!ctx) return { error: 'Unauthorized' };
+  const ctx = await assertRole('owner', 'admin');
+  if (!ctx) return { error: 'Unauthorized: owner or admin role required' };
 
   // Verify building ownership
   const access = await assertBuildingAccess(buildingId);

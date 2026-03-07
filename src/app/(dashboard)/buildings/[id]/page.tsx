@@ -1,35 +1,14 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, Plus, Building2, Zap, Flame, Droplets } from "lucide-react";
 import { detectGaps, getMonthName } from "@/lib/validation/gap-detector";
-
-const DEMO_BUILDING = {
-  name: "350 Fifth Avenue",
-  addressLine1: "350 Fifth Avenue",
-  city: "New York",
-  state: "NY",
-  zip: "10118",
-  grossSqft: "2768591",
-  occupancyType: "B - Business",
-  yearBuilt: 1931,
-  jurisdictionId: "nyc-ll97",
-};
-
-const DEMO_ACCOUNTS = [
-  { id: "a1", utilityType: "electricity" },
-  { id: "a2", utilityType: "natural_gas" },
-];
-
-const DEMO_READINGS = [
-  { utilityAccountId: "a1", periodStart: "2024-01-01", periodEnd: "2024-01-31" },
-  { utilityAccountId: "a1", periodStart: "2024-02-01", periodEnd: "2024-02-29" },
-  { utilityAccountId: "a1", periodStart: "2024-03-01", periodEnd: "2024-03-31" },
-  { utilityAccountId: "a2", periodStart: "2024-01-01", periodEnd: "2024-01-31" },
-  { utilityAccountId: "a2", periodStart: "2024-02-01", periodEnd: "2024-02-29" },
-  { utilityAccountId: "a2", periodStart: "2024-03-01", periodEnd: "2024-03-31" },
-];
+import { db } from "@/lib/db";
+import { buildings, utilityAccounts, utilityReadings } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { assertBuildingAccess } from "@/lib/auth/helpers";
 
 const UTILITY_LABELS: Record<string, string> = {
   electricity: "Electricity",
@@ -45,10 +24,38 @@ export default async function BuildingDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const building = DEMO_BUILDING;
+
+  // Verify building ownership
+  const access = await assertBuildingAccess(id);
+  if (!access) redirect("/dashboard");
+
+  // Fetch building data
+  const [building] = await db
+    .select()
+    .from(buildings)
+    .where(eq(buildings.id, id))
+    .limit(1);
+
+  if (!building) redirect("/dashboard");
+
+  // Fetch utility accounts and readings for gap detection
+  const accounts = await db
+    .select({ id: utilityAccounts.id, utilityType: utilityAccounts.utilityType })
+    .from(utilityAccounts)
+    .where(eq(utilityAccounts.buildingId, id));
+
+  const readings = await db
+    .select({
+      utilityAccountId: utilityReadings.utilityAccountId,
+      periodStart: utilityReadings.periodStart,
+      periodEnd: utilityReadings.periodEnd,
+    })
+    .from(utilityReadings)
+    .where(eq(utilityReadings.buildingId, id));
+
   const currentYear = new Date().getFullYear();
 
-  const gapReport = detectGaps(id, currentYear, DEMO_ACCOUNTS, DEMO_READINGS);
+  const gapReport = detectGaps(id, currentYear, accounts, readings);
   const totalMissingMonths = gapReport.accounts.reduce(
     (sum, a) => sum + a.missingMonths.length, 0
   );

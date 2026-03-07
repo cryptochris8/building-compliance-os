@@ -3,6 +3,8 @@ import { db } from '@/lib/db';
 import { users, buildings } from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 
+export type UserRole = 'owner' | 'admin' | 'member';
+
 /**
  * Get the authenticated Supabase user, or null if not logged in.
  */
@@ -34,19 +36,30 @@ export async function requireAuth() {
 }
 
 /**
- * Get auth user + org ID in a single flow (avoids double auth call).
+ * Get auth user + org ID + role in a single flow (avoids double auth call).
  */
 export async function getAuthContext() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [dbUser] = await db.select({ organizationId: users.organizationId })
+  const [dbUser] = await db.select({ organizationId: users.organizationId, role: users.role })
     .from(users).where(eq(users.id, user.id)).limit(1);
 
   if (!dbUser?.organizationId) return null;
 
-  return { user, orgId: dbUser.organizationId };
+  return { user, orgId: dbUser.organizationId, role: (dbUser.role || 'member') as UserRole };
+}
+
+/**
+ * Assert the current user has one of the required roles.
+ * Returns the auth context on success, or null if insufficient permissions.
+ */
+export async function assertRole(...allowedRoles: UserRole[]): Promise<{ user: { id: string }; orgId: string; role: UserRole } | null> {
+  const ctx = await getAuthContext();
+  if (!ctx) return null;
+  if (!allowedRoles.includes(ctx.role)) return null;
+  return ctx;
 }
 
 /**

@@ -113,7 +113,7 @@ export async function updateReading(id: string, formData: ReadingFormValues) {
       costDollars: data.costDollars || null,
       source: data.source,
       confidence: data.confidence,
-    }).where(eq(utilityReadings.id, id)).returning();
+    }).where(and(eq(utilityReadings.id, id), eq(utilityReadings.buildingId, data.buildingId))).returning();
 
     await triggerRecalculation(data.buildingId).catch(console.error);
     revalidatePath('/buildings/' + data.buildingId + '/readings');
@@ -133,9 +133,10 @@ export async function deleteReading(id: string, buildingId: string) {
   const access = await assertBuildingAccess(buildingId);
   if (!access) return { error: 'Building not found or access denied' };
 
-  // Check if reading belongs to a locked year
+  // Verify record belongs to this building and check locked year
   const [reading] = await db.select({ periodStart: utilityReadings.periodStart })
-    .from(utilityReadings).where(eq(utilityReadings.id, id)).limit(1);
+    .from(utilityReadings).where(and(eq(utilityReadings.id, id), eq(utilityReadings.buildingId, buildingId))).limit(1);
+  if (!reading) return { error: 'Reading not found or access denied' };
   if (reading) {
     const year = new Date(reading.periodStart).getFullYear();
     if (await isYearLocked(buildingId, year)) {
@@ -144,7 +145,7 @@ export async function deleteReading(id: string, buildingId: string) {
   }
 
   try {
-    await db.delete(utilityReadings).where(eq(utilityReadings.id, id));
+    await db.delete(utilityReadings).where(and(eq(utilityReadings.id, id), eq(utilityReadings.buildingId, buildingId)));
     await triggerRecalculation(buildingId).catch(console.error);
     revalidatePath('/buildings/' + buildingId + '/readings');
     revalidatePath('/buildings/' + buildingId + '/compliance');
