@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { buildings, organizations, complianceYears, utilityAccounts, utilityReadings, deductions, documents } from "@/lib/db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
@@ -8,6 +9,8 @@ import { ComplianceReportDocument } from "@/lib/reports/compliance-report";
 import type { ReportData } from "@/lib/reports/compliance-report";
 import { assertBuildingAccess } from "@/lib/auth/helpers";
 import { apiLimiter } from "@/lib/rate-limit";
+
+const yearParamSchema = z.coerce.number().int().min(2000).max(2100);
 
 export async function GET(
   request: Request,
@@ -27,7 +30,11 @@ export async function GET(
     if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const url = new URL(request.url);
-    const year = parseInt(url.searchParams.get("year") || String(new Date().getFullYear()));
+    const yearResult = yearParamSchema.safeParse(url.searchParams.get("year") || new Date().getFullYear());
+    if (!yearResult.success) {
+      return NextResponse.json({ error: "Invalid year parameter" }, { status: 400 });
+    }
+    const year = yearResult.data;
 
     // Fetch building
     const [building] = await db.select().from(buildings)

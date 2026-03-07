@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db';
 import { users, organizations } from '@/lib/db/schema';
@@ -9,6 +10,10 @@ import {
   getSubscription,
 } from '@/lib/stripe/client';
 import { apiLimiter } from '@/lib/rate-limit';
+
+const checkoutSchema = z.object({
+  priceId: z.string().min(1, 'priceId is required'),
+});
 
 async function getAuthOrgId(): Promise<{
   orgId: string;
@@ -55,13 +60,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
-    const { priceId } = await request.json();
-    if (!priceId) {
+    const body = await request.json();
+    const parsed = checkoutSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'priceId is required' },
+        { error: parsed.error.issues[0]?.message || 'Invalid request body' },
         { status: 400 },
       );
     }
+    const { priceId } = parsed.data;
 
     const url = await createCheckoutSession(auth.orgId, priceId, auth.email);
     return NextResponse.json({ url });

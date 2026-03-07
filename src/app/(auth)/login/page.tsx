@@ -48,7 +48,7 @@ function LoginForm() {
         </p>
       </div>
 
-      <form onSubmit={handleLogin} className="space-y-4">
+      <form onSubmit={handleLogin} className="space-y-4" aria-describedby={error ? "login-error" : undefined}>
         <div className="space-y-2">
           <label htmlFor="email" className="text-sm font-medium">
             Email
@@ -80,7 +80,7 @@ function LoginForm() {
         </div>
 
         {error && (
-          <p className="text-sm text-destructive">{error}</p>
+          <p id="login-error" role="alert" className="text-sm text-destructive">{error}</p>
         )}
 
         <button
@@ -104,10 +104,10 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <main id="main-content" className="flex min-h-screen items-center justify-center">
       <Suspense fallback={<div>Loading...</div>}>
         <LoginForm />
       </Suspense>
-    </div>
+    </main>
   );
 }

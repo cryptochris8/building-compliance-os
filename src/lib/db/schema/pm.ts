@@ -5,7 +5,7 @@ import { organizations, buildings } from './index';
 // PM Connections
 export const pmConnections = pgTable('pm_connections', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').references(() => organizations.id).notNull(),
+  orgId: uuid('org_id').references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
   pmUsername: text('pm_username').notNull(),
   pmPasswordEncrypted: text('pm_password_encrypted').notNull(),
   connectedAt: timestamp('connected_at', { withTimezone: true }).defaultNow(),
@@ -15,9 +15,9 @@ export const pmConnections = pgTable('pm_connections', {
 // PM Property Mappings
 export const pmPropertyMappings = pgTable('pm_property_mappings', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').references(() => organizations.id).notNull(),
+  orgId: uuid('org_id').references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
   pmPropertyId: text('pm_property_id').notNull(),
-  buildingId: uuid('building_id').references(() => buildings.id),
+  buildingId: uuid('building_id').references(() => buildings.id, { onDelete: 'set null' }),
   pmPropertyName: text('pm_property_name'),
   linkedAt: timestamp('linked_at', { withTimezone: true }),
 });

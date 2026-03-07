@@ -15,7 +15,7 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
 export const subscriptions = pgTable('subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id')
-    .references(() => organizations.id)
+    .references(() => organizations.id, { onDelete: 'cascade' })
     .notNull(),
   stripeCustomerId: text('stripe_customer_id').notNull(),
   stripeSubscriptionId: text('stripe_subscription_id').notNull(),

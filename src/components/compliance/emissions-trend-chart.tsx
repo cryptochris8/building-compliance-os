@@ -88,6 +88,32 @@ export function EmissionsTrendChart({ data }: EmissionsTrendChartProps) {
           </ComposedChart>
         </ResponsiveContainer>
         </div>
+        <details className="mt-4">
+          <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
+            View data table
+          </summary>
+          <table className="mt-2 w-full text-sm">
+            <caption className="sr-only">Emissions trend year over year</caption>
+            <thead>
+              <tr className="border-b">
+                <th scope="col" className="text-left py-1 font-medium">Year</th>
+                <th scope="col" className="text-right py-1 font-medium">Emissions (tCO2e)</th>
+                <th scope="col" className="text-right py-1 font-medium">Limit (tCO2e)</th>
+                <th scope="col" className="text-right py-1 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((d) => (
+                <tr key={d.year} className="border-b">
+                  <td className="py-1">{d.year}</td>
+                  <td className="text-right py-1">{d.emissions.toFixed(2)}</td>
+                  <td className="text-right py-1">{d.limit.toFixed(2)}</td>
+                  <td className="text-right py-1">{d.emissions > d.limit ? "Over" : "Under"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
       </CardContent>
     </Card>
   );

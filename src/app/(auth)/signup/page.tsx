@@ -38,7 +38,7 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <main id="main-content" className="flex min-h-screen items-center justify-center">
         <div className="w-full max-w-sm space-y-4 text-center">
           <h1 className="text-2xl font-bold">Check Your Email</h1>
           <p className="text-muted-foreground">
@@ -49,12 +49,12 @@ export default function SignupPage() {
             Back to Sign In
           </Link>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <main id="main-content" className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold">Create Account</h1>
@@ -63,7 +63,7 @@ export default function SignupPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSignup} className="space-y-4">
+        <form onSubmit={handleSignup} className="space-y-4" aria-describedby={error ? "signup-error" : undefined}>
           <div className="space-y-2">
             <label htmlFor="fullName" className="text-sm font-medium">
               Full Name
@@ -111,7 +111,7 @@ export default function SignupPage() {
           </div>
 
           {error && (
-            <p className="text-sm text-destructive">{error}</p>
+            <p id="signup-error" role="alert" className="text-sm text-destructive">{error}</p>
           )}
 
           <button
@@ -130,6 +130,6 @@ export default function SignupPage() {
           </Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

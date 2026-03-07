@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { filterAuthorizedBuildingIds } from "@/lib/auth/helpers";
+
+const bulkReportSchema = z.object({
+  buildingIds: z.array(z.string().uuid()).min(1, "At least one building ID required"),
+  year: z.number().int().min(2000).max(2100),
+});
 
 export async function POST(request: Request) {
   try {
-    // Verify building ownership for all requested IDs
-    const { buildingIds, year } = await request.json();
-    if (!buildingIds || !Array.isArray(buildingIds) || !year)
-      return NextResponse.json({ error: "buildingIds and year required" }, { status: 400 });
+    const body = await request.json();
+    const parsed = bulkReportSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid request" }, { status: 400 });
+    }
+    const { buildingIds, year } = parsed.data;
 
     const auth = await filterAuthorizedBuildingIds(buildingIds);
     if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/lib/db';
 import { complianceYears } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service';
 import { assertBuildingAccess } from '@/lib/auth/helpers';
+
+const yearParamSchema = z.coerce.number().int().min(2000).max(2100);
 
 export async function GET(
   request: Request,
@@ -22,7 +25,11 @@ export async function GET(
     const yearParam = url.searchParams.get('year');
 
     if (yearParam) {
-      const year = parseInt(yearParam);
+      const yearResult = yearParamSchema.safeParse(yearParam);
+      if (!yearResult.success) {
+        return NextResponse.json({ error: 'Invalid year parameter' }, { status: 400 });
+      }
+      const year = yearResult.data;
       const [cy] = await db.select().from(complianceYears)
         .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
         .limit(1);

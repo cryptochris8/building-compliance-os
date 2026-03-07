@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getComplianceSummary } from '@/lib/emissions/compliance-service';
+
+const yearParamSchema = z.coerce.number().int().min(2000).max(2100);
 
 export async function GET(request: Request) {
   try {
@@ -20,7 +23,11 @@ export async function GET(request: Request) {
     }
 
     const url = new URL(request.url);
-    const year = parseInt(url.searchParams.get('year') || String(new Date().getFullYear()));
+    const yearResult = yearParamSchema.safeParse(url.searchParams.get('year') || new Date().getFullYear());
+    if (!yearResult.success) {
+      return NextResponse.json({ error: 'Invalid year parameter' }, { status: 400 });
+    }
+    const year = yearResult.data;
 
     const summary = await getComplianceSummary(dbUser.organizationId, year);
     return NextResponse.json(summary);

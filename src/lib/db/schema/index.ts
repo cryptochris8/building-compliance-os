@@ -25,7 +25,7 @@ export const organizations = pgTable('organizations', {
 // Users
 export const users = pgTable('users', {
   id: uuid('id').primaryKey(),
-  organizationId: uuid('organization_id').references(() => organizations.id),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
   role: userRoleEnum('role').default('member'),
   fullName: text('full_name'),
   email: text('email').notNull(),
@@ -37,7 +37,7 @@ export const users = pgTable('users', {
 // Buildings
 export const buildings = pgTable('buildings', {
   id: uuid('id').primaryKey().defaultRandom(),
-  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
   name: text('name').notNull(),
   addressLine1: text('address_line1').notNull(),
   addressLine2: text('address_line2'),
@@ -63,7 +63,7 @@ export const buildings = pgTable('buildings', {
 // Utility Accounts
 export const utilityAccounts = pgTable('utility_accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
-  buildingId: uuid('building_id').references(() => buildings.id).notNull(),
+  buildingId: uuid('building_id').references(() => buildings.id, { onDelete: 'cascade' }).notNull(),
   accountNumber: text('account_number'),
   utilityType: utilityTypeEnum('utility_type').notNull(),
   providerName: text('provider_name'),
@@ -78,8 +78,8 @@ export const utilityAccounts = pgTable('utility_accounts', {
 // Utility Readings
 export const utilityReadings = pgTable('utility_readings', {
   id: uuid('id').primaryKey().defaultRandom(),
-  utilityAccountId: uuid('utility_account_id').references(() => utilityAccounts.id).notNull(),
-  buildingId: uuid('building_id').references(() => buildings.id).notNull(),
+  utilityAccountId: uuid('utility_account_id').references(() => utilityAccounts.id, { onDelete: 'cascade' }).notNull(),
+  buildingId: uuid('building_id').references(() => buildings.id, { onDelete: 'cascade' }).notNull(),
   periodStart: date('period_start').notNull(),
   periodEnd: date('period_end').notNull(),
   consumptionValue: numeric('consumption_value').notNull(),
@@ -97,7 +97,7 @@ export const utilityReadings = pgTable('utility_readings', {
 // Compliance Years
 export const complianceYears = pgTable('compliance_years', {
   id: uuid('id').primaryKey().defaultRandom(),
-  buildingId: uuid('building_id').references(() => buildings.id).notNull(),
+  buildingId: uuid('building_id').references(() => buildings.id, { onDelete: 'cascade' }).notNull(),
   year: integer('year').notNull(),
   jurisdictionId: text('jurisdiction_id').notNull(),
   totalEmissionsTco2e: numeric('total_emissions_tco2e'),
@@ -127,14 +127,14 @@ export const complianceYears = pgTable('compliance_years', {
 // Documents (Evidence Vault)
 export const documents = pgTable('documents', {
   id: uuid('id').primaryKey().defaultRandom(),
-  buildingId: uuid('building_id').references(() => buildings.id).notNull(),
-  complianceYearId: uuid('compliance_year_id').references(() => complianceYears.id),
+  buildingId: uuid('building_id').references(() => buildings.id, { onDelete: 'cascade' }).notNull(),
+  complianceYearId: uuid('compliance_year_id').references(() => complianceYears.id, { onDelete: 'set null' }),
   fileName: text('file_name').notNull(),
   fileType: text('file_type').notNull(),
   filePath: text('file_path').notNull(),
   fileSizeBytes: integer('file_size_bytes'),
   documentType: documentTypeEnum('document_type'),
-  uploadedBy: uuid('uploaded_by').references(() => users.id),
+  uploadedBy: uuid('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => [
   index('idx_documents_building_id').on(table.buildingId),
@@ -144,8 +144,8 @@ export const documents = pgTable('documents', {
 // Import Jobs
 export const importJobs = pgTable('import_jobs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
-  buildingId: uuid('building_id').references(() => buildings.id),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
+  buildingId: uuid('building_id').references(() => buildings.id, { onDelete: 'set null' }),
   fileName: text('file_name').notNull(),
   filePath: text('file_path').notNull(),
   status: importJobStatusEnum('status').default('pending'),
@@ -162,12 +162,12 @@ export const importJobs = pgTable('import_jobs', {
 // Phase 4: Compliance Activities
 export const complianceActivities = pgTable('compliance_activities', {
   id: uuid('id').primaryKey().defaultRandom(),
-  buildingId: uuid('building_id').references(() => buildings.id).notNull(),
-  complianceYearId: uuid('compliance_year_id').references(() => complianceYears.id),
-  orgId: uuid('org_id').references(() => organizations.id),
+  buildingId: uuid('building_id').references(() => buildings.id, { onDelete: 'cascade' }).notNull(),
+  complianceYearId: uuid('compliance_year_id').references(() => complianceYears.id, { onDelete: 'set null' }),
+  orgId: uuid('org_id').references(() => organizations.id, { onDelete: 'set null' }),
   activityType: activityTypeEnum('activity_type').notNull(),
   description: text('description').notNull(),
-  actorId: uuid('actor_id').references(() => users.id),
+  actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => [
@@ -177,13 +177,13 @@ export const complianceActivities = pgTable('compliance_activities', {
 // Phase 4: Deductions
 export const deductions = pgTable('deductions', {
   id: uuid('id').primaryKey().defaultRandom(),
-  buildingId: uuid('building_id').references(() => buildings.id).notNull(),
-  complianceYearId: uuid('compliance_year_id').references(() => complianceYears.id).notNull(),
-  orgId: uuid('org_id').references(() => organizations.id),
+  buildingId: uuid('building_id').references(() => buildings.id, { onDelete: 'cascade' }).notNull(),
+  complianceYearId: uuid('compliance_year_id').references(() => complianceYears.id, { onDelete: 'cascade' }).notNull(),
+  orgId: uuid('org_id').references(() => organizations.id, { onDelete: 'set null' }),
   deductionType: deductionTypeEnum('deduction_type').notNull(),
   description: text('description'),
   amountTco2e: numeric('amount_tco2e').notNull(),
-  documentationId: uuid('documentation_id').references(() => documents.id),
+  documentationId: uuid('documentation_id').references(() => documents.id, { onDelete: 'set null' }),
   verified: boolean('verified').default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => [

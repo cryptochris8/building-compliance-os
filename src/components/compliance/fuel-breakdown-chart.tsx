@@ -91,6 +91,30 @@ export function FuelBreakdownChart({ breakdownByFuel, totalEmissions }: FuelBrea
             </div>
           </div>
         </div>
+        <details className="mt-4">
+          <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
+            View data table
+          </summary>
+          <table className="mt-2 w-full text-sm">
+            <caption className="sr-only">Emissions breakdown by fuel type</caption>
+            <thead>
+              <tr className="border-b">
+                <th scope="col" className="text-left py-1 font-medium">Fuel Type</th>
+                <th scope="col" className="text-right py-1 font-medium">Emissions (tCO2e)</th>
+                <th scope="col" className="text-right py-1 font-medium">% of Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((item) => (
+                <tr key={item.name} className="border-b">
+                  <td className="py-1">{item.name}</td>
+                  <td className="text-right py-1">{item.value.toFixed(3)}</td>
+                  <td className="text-right py-1">{item.pct}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
       </CardContent>
     </Card>
   );

@@ -121,7 +121,7 @@ export default function DashboardLayout({
           <h1 className="text-lg font-semibold">Compliance OS</h1>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main id="main-content" className="flex-1 overflow-y-auto p-6">
           {children}
         </main>
       </div>
