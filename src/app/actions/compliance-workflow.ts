@@ -152,6 +152,11 @@ export async function bulkMarkSubmitted(
   buildingIds: string[],
   year: number
 ): Promise<{ error?: string; successCount?: number }> {
+  // Verify auth + role (owner/admin required for write operations)
+  const ctx = await getAuthContext();
+  if (!ctx) return { error: 'Unauthorized' };
+  if (!WRITE_ROLES.includes(ctx.role)) return { error: 'Insufficient permissions: owner or admin role required' };
+
   // Verify all building IDs belong to the user's org
   const auth = await filterAuthorizedBuildingIds(buildingIds);
   if (!auth) return { error: 'Unauthorized' };
@@ -188,6 +193,11 @@ export async function bulkRecalculate(
   buildingIds: string[],
   year: number
 ): Promise<{ error?: string; successCount?: number }> {
+  // Verify auth + role (owner/admin required for write operations)
+  const ctx = await getAuthContext();
+  if (!ctx) return { error: 'Unauthorized' };
+  if (!WRITE_ROLES.includes(ctx.role)) return { error: 'Insufficient permissions: owner or admin role required' };
+
   // Verify all building IDs belong to the user's org
   const auth = await filterAuthorizedBuildingIds(buildingIds);
   if (!auth) return { error: 'Unauthorized' };
