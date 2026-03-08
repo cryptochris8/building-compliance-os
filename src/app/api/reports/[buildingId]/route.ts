@@ -20,7 +20,7 @@ export async function GET(
     const { buildingId } = await params;
 
     // Rate limit: 10 report generations per minute per building
-    const { success } = apiLimiter.check(10, 'report:' + buildingId);
+    const { success } = await apiLimiter.check(10, 'report:' + buildingId);
     if (!success) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }

@@ -64,18 +64,24 @@ export async function assertRole(...allowedRoles: UserRole[]): Promise<{ user: {
 
 /**
  * Verify that the given building belongs to the user's organization.
- * Returns the orgId on success, or null if access is denied.
+ * Optionally checks that the user has one of the required roles.
+ * Returns the orgId and role on success, or null if access is denied.
  */
-export async function assertBuildingAccess(buildingId: string): Promise<{ orgId: string } | null> {
+export async function assertBuildingAccess(
+  buildingId: string,
+  requiredRoles?: UserRole[]
+): Promise<{ orgId: string; role: UserRole } | null> {
   const ctx = await getAuthContext();
   if (!ctx) return null;
+
+  if (requiredRoles && !requiredRoles.includes(ctx.role)) return null;
 
   const [building] = await db.select({ organizationId: buildings.organizationId })
     .from(buildings).where(eq(buildings.id, buildingId)).limit(1);
 
   if (!building || building.organizationId !== ctx.orgId) return null;
 
-  return { orgId: ctx.orgId };
+  return { orgId: ctx.orgId, role: ctx.role };
 }
 
 /**

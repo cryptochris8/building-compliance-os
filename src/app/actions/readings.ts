@@ -6,7 +6,9 @@ import { utilityReadings, complianceYears } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { triggerRecalculation } from '@/lib/emissions/recalculation';
-import { getAuthUser, assertBuildingAccess } from '@/lib/auth/helpers';
+import { getAuthUser, assertBuildingAccess, type UserRole } from '@/lib/auth/helpers';
+
+const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
 export const readingFormSchema = z.object({
   utilityAccountId: z.string().min(1, 'Utility account is required'),
@@ -49,8 +51,8 @@ export async function createReading(formData: ReadingFormValues) {
   if (!validated.success) return { error: 'Validation failed', details: validated.error.flatten() };
   const data = validated.data;
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(data.buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   // Check locked year
@@ -92,8 +94,8 @@ export async function updateReading(id: string, formData: ReadingFormValues) {
   if (!validated.success) return { error: 'Validation failed', details: validated.error.flatten() };
   const data = validated.data;
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(data.buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   if (await isYearLocked(data.buildingId, data.periodYear)) {
@@ -129,8 +131,8 @@ export async function deleteReading(id: string, buildingId: string) {
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized' };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   // Verify record belongs to this building and check locked year

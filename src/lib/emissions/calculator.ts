@@ -36,23 +36,26 @@ export function normalizeConsumption(
       // Keep as kWh - coefficients are per kWh
       if (unit === 'kWh' || unit === 'kwh') return { value, unit: 'kWh' };
       if (unit === 'MWh' || unit === 'mwh') return { value: value * 1000, unit: 'kWh' };
-      return { value, unit: 'kWh' };
+      throw new Error(`Unsupported unit "${unit}" for utility type "${utilityType}". Expected kWh or MWh.`);
     case 'natural_gas':
       if (unit === 'therms') return { value: thermsToKbtu(value), unit: 'kBtu' };
       if (unit === 'kBtu' || unit === 'kbtu') return { value, unit: 'kBtu' };
       if (unit === 'ccf') return { value: thermsToKbtu(value * 1.037), unit: 'kBtu' };
-      return { value, unit: 'kBtu' };
+      throw new Error(`Unsupported unit "${unit}" for utility type "${utilityType}". Expected therms, kBtu, or ccf.`);
     case 'fuel_oil_2':
       if (unit === 'gallons') return { value: fuelOil2GallonsToKbtu(value), unit: 'kBtu' };
-      return { value, unit: 'kBtu' };
+      if (unit === 'kBtu' || unit === 'kbtu') return { value, unit: 'kBtu' };
+      throw new Error(`Unsupported unit "${unit}" for utility type "${utilityType}". Expected gallons or kBtu.`);
     case 'fuel_oil_4':
       if (unit === 'gallons') return { value: fuelOil4GallonsToKbtu(value), unit: 'kBtu' };
-      return { value, unit: 'kBtu' };
+      if (unit === 'kBtu' || unit === 'kbtu') return { value, unit: 'kBtu' };
+      throw new Error(`Unsupported unit "${unit}" for utility type "${utilityType}". Expected gallons or kBtu.`);
     case 'district_steam':
       if (unit === 'Mlb' || unit === 'mlb') return { value: districtSteamMlbToKbtu(value), unit: 'kBtu' };
-      return { value, unit: 'kBtu' };
+      if (unit === 'kBtu' || unit === 'kbtu') return { value, unit: 'kBtu' };
+      throw new Error(`Unsupported unit "${unit}" for utility type "${utilityType}". Expected Mlb or kBtu.`);
     default:
-      return { value, unit };
+      throw new Error(`Unknown utility type: "${utilityType}"`);
   }
 }
 // ============================================================

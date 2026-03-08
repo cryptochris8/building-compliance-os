@@ -5,7 +5,9 @@ import { db } from '@/lib/db';
 import { deductions, complianceYears, complianceActivities } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { getAuthUser, assertBuildingAccess, getAuthContext } from '@/lib/auth/helpers';
+import { getAuthUser, assertBuildingAccess, getAuthContext, type UserRole } from '@/lib/auth/helpers';
+
+const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
 type TxClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -45,8 +47,8 @@ export async function createDeduction(data: DeductionFormValues) {
   const validated = deductionFormSchema.safeParse(data);
   if (!validated.success) return { error: 'Validation failed' };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(data.buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   // Check if compliance year is locked
@@ -93,8 +95,8 @@ export async function updateDeduction(id: string, data: DeductionFormValues) {
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized' };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(data.buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select().from(complianceYears)
@@ -127,8 +129,8 @@ export async function deleteDeduction(id: string, buildingId: string, compliance
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized' };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select().from(complianceYears)

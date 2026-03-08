@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limit: 5 checkout attempts per minute per org
-    const { success } = apiLimiter.check(5, 'billing:' + auth.orgId);
+    const { success } = await apiLimiter.check(5, 'billing:' + auth.orgId);
     if (!success) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }

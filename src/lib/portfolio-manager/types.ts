@@ -87,5 +87,5 @@ export const PM_UNIT_MAP: Record<string, string> = {
   'Mlb (thousand pounds)': 'Mlb',
   'Gallons (US)': 'gallons',
   'gallons': 'gallons',
-  'GJ': 'kBtu', // 1 GJ = 947.817 kBtu, handled in conversion
+  'GJ': 'GJ', // 1 GJ = 947.817 kBtu, conversion applied in sync.ts
 };

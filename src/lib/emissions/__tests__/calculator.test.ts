@@ -88,9 +88,16 @@ describe('normalizeConsumption', () => {
     expect(result).toEqual({ value: 11940, unit: 'kBtu' });
   });
 
-  it('returns value unchanged for unknown utility type', () => {
-    const result = normalizeConsumption(500, 'units', 'unknown_type');
-    expect(result).toEqual({ value: 500, unit: 'units' });
+  it('throws for unknown utility type', () => {
+    expect(() => normalizeConsumption(500, 'units', 'unknown_type')).toThrow('Unknown utility type');
+  });
+
+  it('throws for unknown unit within a known utility type', () => {
+    expect(() => normalizeConsumption(100, 'MJ', 'electricity')).toThrow('Unsupported unit');
+    expect(() => normalizeConsumption(100, 'liters', 'natural_gas')).toThrow('Unsupported unit');
+    expect(() => normalizeConsumption(100, 'liters', 'fuel_oil_2')).toThrow('Unsupported unit');
+    expect(() => normalizeConsumption(100, 'liters', 'fuel_oil_4')).toThrow('Unsupported unit');
+    expect(() => normalizeConsumption(100, 'psi', 'district_steam')).toThrow('Unsupported unit');
   });
 });
 

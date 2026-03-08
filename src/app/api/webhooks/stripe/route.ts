@@ -9,7 +9,7 @@ import { webhookLimiter } from '@/lib/rate-limit';
 export async function POST(request: NextRequest) {
   // Rate limit: 100 webhook calls per minute per IP
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const { success } = webhookLimiter.check(100, ip);
+  const { success } = await webhookLimiter.check(100, ip);
   if (!success) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }

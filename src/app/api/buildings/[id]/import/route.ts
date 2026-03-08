@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { importJobs } from "@/lib/db/schema";
 import { parseCsv, validateCsvHeaders } from "@/lib/csv/parser";
-import { assertBuildingAccess } from "@/lib/auth/helpers";
+import { assertBuildingAccess, type UserRole } from "@/lib/auth/helpers";
+
+const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 import { apiLimiter } from "@/lib/rate-limit";
 import { inngest } from "@/lib/inngest/client";
 
@@ -14,13 +16,13 @@ export async function POST(
     const { id: buildingId } = await params;
 
     // Rate limit: 5 imports per minute per building
-    const { success } = apiLimiter.check(5, 'import:' + buildingId);
+    const { success } = await apiLimiter.check(5, 'import:' + buildingId);
     if (!success) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
-    // Verify building ownership
-    const access = await assertBuildingAccess(buildingId);
+    // Verify building ownership and write permission
+    const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
     if (!access) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

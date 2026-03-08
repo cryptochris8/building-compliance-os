@@ -117,6 +117,52 @@ export function MonthlyEmissionsChart({
           </BarChart>
         </ResponsiveContainer>
         </div>
+        <details className="mt-4">
+          <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
+            View data table
+          </summary>
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-sm">
+              <caption className="sr-only">Monthly emissions data in tCO2e</caption>
+              <thead>
+                <tr className="border-b">
+                  <th scope="col" className="py-2 text-left font-medium">Month</th>
+                  {fuelTypes.length > 0 ? (
+                    fuelTypes.map((fuel) => (
+                      <th key={fuel} scope="col" className="py-2 text-right font-medium">
+                        {FUEL_LABELS[fuel] || fuel}
+                      </th>
+                    ))
+                  ) : (
+                    <th scope="col" className="py-2 text-right font-medium">Emissions</th>
+                  )}
+                  <th scope="col" className="py-2 text-right font-medium">Limit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((row) => (
+                  <tr key={row.month as string} className="border-b">
+                    <td className="py-1">{row.month as string}</td>
+                    {fuelTypes.length > 0 ? (
+                      fuelTypes.map((fuel) => (
+                        <td key={fuel} className="py-1 text-right">
+                          {Number(row[fuel] || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                        </td>
+                      ))
+                    ) : (
+                      <td className="py-1 text-right">
+                        {Number(row.emissions || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                      </td>
+                    )}
+                    <td className="py-1 text-right">
+                      {monthlyLimit.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       </CardContent>
     </Card>
   );

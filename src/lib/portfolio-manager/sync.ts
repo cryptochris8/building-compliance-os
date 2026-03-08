@@ -15,9 +15,16 @@ export function mapPMToLocalUtilityType(pmMeterType: string): string {
   return PM_METER_TYPE_MAP[pmMeterType] || "electricity";
 }
 
-/** Map PM unit to local unit */
-export function mapPMToLocalUnit(pmUnit: string): string {
-  return PM_UNIT_MAP[pmUnit] || pmUnit;
+/** GJ to kBtu conversion factor */
+const GJ_TO_KBTU = 947.817;
+
+/** Map PM unit to local unit, applying conversion factor for GJ */
+export function mapPMToLocalUnit(pmUnit: string): { unit: string; conversionFactor: number } {
+  const mapped = PM_UNIT_MAP[pmUnit] || pmUnit;
+  if (mapped === 'GJ') {
+    return { unit: 'kBtu', conversionFactor: GJ_TO_KBTU };
+  }
+  return { unit: mapped, conversionFactor: 1 };
 }
 
 /** Fetch PM properties and create/update mapping records */
@@ -162,9 +169,10 @@ export async function syncMeterData(
       for (const dataPoint of consumptionData) {
         if (!dataPoint.startDate || !dataPoint.endDate) continue;
 
-        const localUnit = mapPMToLocalUnit(
+        const { unit: localUnit, conversionFactor } = mapPMToLocalUnit(
           dataPoint.unit || meter.unitOfMeasure
         );
+        const convertedUsage = dataPoint.usage * conversionFactor;
 
         try {
           await db.insert(utilityReadings).values({
@@ -172,7 +180,7 @@ export async function syncMeterData(
             buildingId,
             periodStart: dataPoint.startDate,
             periodEnd: dataPoint.endDate,
-            consumptionValue: String(dataPoint.usage),
+            consumptionValue: String(convertedUsage),
             consumptionUnit: localUnit,
             costDollars: dataPoint.cost ? String(dataPoint.cost) : null,
             source: "portfolio_manager",

@@ -4,7 +4,9 @@ import { db } from '@/lib/db';
 import { complianceYears } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service';
-import { assertBuildingAccess } from '@/lib/auth/helpers';
+import { assertBuildingAccess, type UserRole } from '@/lib/auth/helpers';
+
+const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
 const yearParamSchema = z.coerce.number().int().min(2000).max(2100);
 
@@ -61,8 +63,8 @@ export async function POST(
   try {
     const { buildingId } = await params;
 
-    // Verify building ownership
-    const access = await assertBuildingAccess(buildingId);
+    // Verify building ownership and write permission
+    const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
     if (!access) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -89,6 +89,36 @@ export function ReadingChart({ data, title = "Monthly Consumption (kBtu)" }: Rea
           </BarChart>
         </ResponsiveContainer>
         </div>
+        <details className="mt-4">
+          <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
+            View data table
+          </summary>
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-sm">
+              <caption className="sr-only">Monthly utility consumption by fuel type in kBtu</caption>
+              <thead>
+                <tr className="border-b">
+                  <th scope="col" className="py-2 text-left font-medium">Month</th>
+                  <th scope="col" className="py-2 text-right font-medium">Electricity</th>
+                  <th scope="col" className="py-2 text-right font-medium">Natural Gas</th>
+                  <th scope="col" className="py-2 text-right font-medium">District Steam</th>
+                  <th scope="col" className="py-2 text-right font-medium">Fuel Oil</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((row) => (
+                  <tr key={row.month} className="border-b">
+                    <td className="py-1">{row.month}</td>
+                    <td className="py-1 text-right">{row.electricity.toLocaleString()}</td>
+                    <td className="py-1 text-right">{row.natural_gas.toLocaleString()}</td>
+                    <td className="py-1 text-right">{row.district_steam.toLocaleString()}</td>
+                    <td className="py-1 text-right">{row.fuel_oil.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       </CardContent>
     </Card>
   );

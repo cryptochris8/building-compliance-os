@@ -77,8 +77,8 @@ export async function linkProperty(pmPropertyId: string, buildingId: string) {
   const orgId = await getUserOrgId();
   if (!orgId) return { error: "Unauthorized" };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(buildingId, ['owner', 'admin']);
   if (!access) return { error: "Building not found or access denied" };
 
   const [mapping] = await db.select().from(pmPropertyMappings)
@@ -119,8 +119,8 @@ export async function importMeterData(pmPropertyId: string, buildingId: string) 
   const orgId = await getUserOrgId();
   if (!orgId) return { error: "Unauthorized" };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(buildingId, ['owner', 'admin']);
   if (!access) return { error: "Building not found or access denied" };
 
   try {

@@ -33,7 +33,7 @@ export default function MarketingLayout({
           </nav>
         </div>
       </header>
-      <main className="flex-1">{children}</main>
+      <main id="main-content" className="flex-1">{children}</main>
       <footer className="border-t bg-card py-12">
         <div className="container mx-auto px-4">
           <div className="grid gap-8 md:grid-cols-4">

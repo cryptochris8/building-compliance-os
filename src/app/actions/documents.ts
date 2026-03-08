@@ -6,7 +6,9 @@ import { documents } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getAuthUser, assertBuildingAccess } from '@/lib/auth/helpers';
+import { getAuthUser, assertBuildingAccess, type UserRole } from '@/lib/auth/helpers';
+
+const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
 // ============================================================
 // Zod Validation Schema for Document Upload
@@ -41,8 +43,8 @@ export async function uploadDocument(formData: DocumentFormValues) {
 
   const data = validated.data;
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(data.buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   try {
@@ -77,8 +79,8 @@ export async function deleteDocument(id: string, buildingId: string) {
     return { error: 'Unauthorized' };
   }
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   try {

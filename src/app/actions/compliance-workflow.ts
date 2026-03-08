@@ -5,7 +5,9 @@ import { complianceYears, complianceActivities } from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service';
-import { getAuthUser, assertBuildingAccess, getAuthContext, filterAuthorizedBuildingIds, assertRole } from '@/lib/auth/helpers';
+import { getAuthUser, assertBuildingAccess, getAuthContext, filterAuthorizedBuildingIds, assertRole, type UserRole } from '@/lib/auth/helpers';
+
+const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
 async function logActivity(
   buildingId: string,
@@ -35,8 +37,8 @@ export async function updateChecklist(
   const ctx = await getAuthContext();
   if (!ctx) return { error: 'Unauthorized' };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select().from(complianceYears)
@@ -72,8 +74,8 @@ export async function lockComplianceYear(
   const ctx = await assertRole('owner', 'admin');
   if (!ctx) return { error: 'Unauthorized: owner or admin role required' };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select().from(complianceYears)
@@ -103,8 +105,8 @@ export async function unlockComplianceYear(
   const ctx = await assertRole('owner', 'admin');
   if (!ctx) return { error: 'Unauthorized: owner or admin role required' };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select().from(complianceYears)
@@ -133,8 +135,8 @@ export async function addComplianceNote(
   const ctx = await getAuthContext();
   if (!ctx) return { error: 'Unauthorized' };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select({ id: complianceYears.id }).from(complianceYears)

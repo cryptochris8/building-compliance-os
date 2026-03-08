@@ -1,34 +1,27 @@
 /**
- * Serverless-compatible rate limiter.
+ * Rate limiter with Upstash Redis support.
  *
- * PRODUCTION NOTE: In multi-instance deployments (Vercel serverless),
- * in-memory rate limiting provides per-instance protection only.
- * For production, replace with @upstash/ratelimit:
- *
- *   import { Ratelimit } from "@upstash/ratelimit";
- *   import { Redis } from "@upstash/redis";
- *   export const apiLimiter = new Ratelimit({
- *     redis: Redis.fromEnv(),
- *     limiter: Ratelimit.slidingWindow(10, "60 s"),
- *   });
- *
- * The check() API below is designed to be compatible with @upstash/ratelimit's
- * limit() return shape for easy migration.
+ * Uses @upstash/ratelimit when UPSTASH_REDIS_REST_URL is configured,
+ * falling back to in-memory rate limiting for local dev or single-instance.
  */
+
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
 
 interface RateLimitResult {
   success: boolean;
   remaining: number;
 }
 
-interface RateLimiterOptions {
-  /** Time window in milliseconds */
-  interval: number;
-  /** Max unique tokens tracked (prevents memory leaks) */
-  uniqueTokenPerInterval: number;
+interface RateLimiterLike {
+  check: (limit: number, token: string) => RateLimitResult | Promise<RateLimitResult>;
 }
 
-function createRateLimiter(options: RateLimiterOptions) {
+// ---------------------------------------------------------------------------
+// In-memory fallback (single-instance only)
+// ---------------------------------------------------------------------------
+
+function createInMemoryLimiter(options: { interval: number; uniqueTokenPerInterval: number }): RateLimiterLike {
   const tokenCounts = new Map<string, { count: number; resetTime: number }>();
 
   const cleanup = () => {
@@ -40,7 +33,6 @@ function createRateLimiter(options: RateLimiterOptions) {
     }
   };
 
-  // Periodic cleanup using unref'd timer to avoid holding the process open
   if (typeof setInterval !== 'undefined') {
     const timer = setInterval(cleanup, options.interval);
     if (typeof timer === 'object' && 'unref' in timer) {
@@ -56,7 +48,6 @@ function createRateLimiter(options: RateLimiterOptions) {
       if (!entry || now >= entry.resetTime) {
         tokenCounts.set(token, { count: 1, resetTime: now + options.interval });
 
-        // Evict oldest entries if we exceed max unique tokens
         if (tokenCounts.size > options.uniqueTokenPerInterval) {
           const firstKey = tokenCounts.keys().next().value;
           if (firstKey) tokenCounts.delete(firstKey);
@@ -75,18 +66,41 @@ function createRateLimiter(options: RateLimiterOptions) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Upstash Redis-backed limiter
+// ---------------------------------------------------------------------------
+
+function createUpstashLimiter(windowMs: number, maxRequests: number): RateLimiterLike {
+  const redis = Redis.fromEnv();
+  const windowStr = `${Math.round(windowMs / 1000)} s`;
+  const ratelimit = new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(maxRequests, windowStr as `${number} s`),
+    analytics: false,
+  });
+
+  return {
+    check: async (_limit: number, token: string): Promise<RateLimitResult> => {
+      const result = await ratelimit.limit(token);
+      return { success: result.success, remaining: result.remaining };
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Factory: choose backend based on environment
+// ---------------------------------------------------------------------------
+
+const useUpstash = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+
+function createLimiter(windowMs: number, maxRequests: number, uniqueTokens: number): RateLimiterLike {
+  if (useUpstash) {
+    return createUpstashLimiter(windowMs, maxRequests);
+  }
+  return createInMemoryLimiter({ interval: windowMs, uniqueTokenPerInterval: uniqueTokens });
+}
+
 // Rate limiters for different endpoint types
-export const apiLimiter = createRateLimiter({
-  interval: 60 * 1000, // 1 minute
-  uniqueTokenPerInterval: 500,
-});
-
-export const authLimiter = createRateLimiter({
-  interval: 15 * 60 * 1000, // 15 minutes
-  uniqueTokenPerInterval: 500,
-});
-
-export const webhookLimiter = createRateLimiter({
-  interval: 60 * 1000, // 1 minute
-  uniqueTokenPerInterval: 100,
-});
+export const apiLimiter = createLimiter(60_000, 10, 500);       // 10 req/min
+export const authLimiter = createLimiter(15 * 60_000, 5, 500);  // 5 req/15min
+export const webhookLimiter = createLimiter(60_000, 30, 100);   // 30 req/min

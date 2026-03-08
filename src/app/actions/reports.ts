@@ -3,7 +3,9 @@
 import { db } from "@/lib/db";
 import { buildings, complianceYears } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { getAuthUser, assertBuildingAccess, getUserOrgId } from "@/lib/auth/helpers";
+import { getAuthUser, assertBuildingAccess, getUserOrgId, type UserRole } from "@/lib/auth/helpers";
+
+const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
 export async function getReportHistory(buildingId: string) {
   const authUser = await getAuthUser();
@@ -50,8 +52,8 @@ export async function markReportSubmitted(buildingId: string, year: number) {
   const authUser = await getAuthUser();
   if (!authUser) return { error: "Unauthorized" };
 
-  // Verify building ownership
-  const access = await assertBuildingAccess(buildingId);
+  // Verify building ownership and write permission
+  const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: "Building not found or access denied" };
 
   const [cy] = await db.select().from(complianceYears)
