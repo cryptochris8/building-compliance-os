@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -95,11 +96,14 @@ export default function DocumentsPage() {
   }, [documents]);
 
   const uniqueYears = [...new Set(documents.map((d) => d.complianceYear).filter(Boolean))].sort();
+  const [confirmProps, showConfirm] = useConfirmDialog();
 
-  const handleDelete = async (docId: string) => {
-    if (confirm("Are you sure you want to delete this document?")) {
-      await deleteDocument(docId, buildingId);
-    }
+  const handleDelete = (docId: string) => {
+    showConfirm({
+      title: "Delete Document",
+      description: "Are you sure you want to delete this document? This action cannot be undone.",
+      onConfirm: () => deleteDocument(docId, buildingId),
+    });
   };
 
   return (
@@ -242,6 +246,7 @@ export default function DocumentsPage() {
           </DialogContent>
         </Dialog>
       )}
+      <ConfirmDialog {...confirmProps} />
     </div>
   );
 }

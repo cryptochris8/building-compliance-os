@@ -42,6 +42,13 @@ export async function syncProperties(orgId: string) {
 
   const properties = await client.getProperties();
 
+  // Pre-fetch all existing mappings for this org to avoid N+1 queries
+  const existingMappings = await db
+    .select()
+    .from(pmPropertyMappings)
+    .where(eq(pmPropertyMappings.orgId, orgId));
+  const mappingsByPmId = new Map(existingMappings.map((m) => [m.pmPropertyId, m]));
+
   for (const prop of properties) {
     if (prop.name && !prop.address) {
       try {
@@ -59,18 +66,9 @@ export async function syncProperties(orgId: string) {
       }
     }
 
-    const existing = await db
-      .select()
-      .from(pmPropertyMappings)
-      .where(
-        and(
-          eq(pmPropertyMappings.orgId, orgId),
-          eq(pmPropertyMappings.pmPropertyId, prop.id)
-        )
-      )
-      .limit(1);
+    const existing = mappingsByPmId.get(prop.id);
 
-    if (existing.length === 0) {
+    if (!existing) {
       await db.insert(pmPropertyMappings).values({
         orgId,
         pmPropertyId: prop.id,
@@ -80,7 +78,7 @@ export async function syncProperties(orgId: string) {
       await db
         .update(pmPropertyMappings)
         .set({ pmPropertyName: prop.name })
-        .where(eq(pmPropertyMappings.id, existing[0].id));
+        .where(eq(pmPropertyMappings.id, existing.id));
     }
   }
 
@@ -128,25 +126,24 @@ export async function syncMeterData(
     "fuel_oil_4",
   ];
 
+  // Pre-fetch all utility accounts for this building to avoid N+1
+  const allAccounts = await db
+    .select()
+    .from(utilityAccounts)
+    .where(eq(utilityAccounts.buildingId, buildingId));
+  const accountsByType = new Map<string, string>();
+  for (const a of allAccounts) {
+    if (!accountsByType.has(a.utilityType)) {
+      accountsByType.set(a.utilityType, a.id);
+    }
+  }
+
   for (const meter of meters) {
     const localType = mapPMToLocalUtilityType(meter.type);
     if (!validTypes.includes(localType as UtilityType)) continue;
 
-    const existingAccounts = await db
-      .select()
-      .from(utilityAccounts)
-      .where(
-        and(
-          eq(utilityAccounts.buildingId, buildingId),
-          eq(utilityAccounts.utilityType, localType as UtilityType)
-        )
-      )
-      .limit(1);
-
-    let accountId: string;
-    if (existingAccounts.length > 0) {
-      accountId = existingAccounts[0].id;
-    } else {
+    let accountId = accountsByType.get(localType);
+    if (!accountId) {
       const [newAccount] = await db
         .insert(utilityAccounts)
         .values({
@@ -157,6 +154,7 @@ export async function syncMeterData(
         })
         .returning();
       accountId = newAccount.id;
+      accountsByType.set(localType, accountId);
     }
 
     try {

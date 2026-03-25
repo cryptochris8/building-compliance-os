@@ -11,6 +11,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -54,22 +55,27 @@ export function DeductionsClient({
 }: DeductionsClientProps) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmProps, showConfirm] = useConfirmDialog();
 
   const handleYearChange = (year: string) => {
     router.push("/buildings/" + buildingId + "/deductions?year=" + year);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!complianceYearId) return;
-    if (confirm("Delete this deduction?")) {
-      const result = await deleteDeduction(id, buildingId, complianceYearId);
-      if (result.error) {
-        toast.error(result.error);
-      } else {
-        toast.success("Deduction deleted");
-        router.refresh();
-      }
-    }
+    showConfirm({
+      title: "Delete Deduction",
+      description: "Are you sure you want to delete this deduction? This will affect the compliance calculation.",
+      onConfirm: async () => {
+        const result = await deleteDeduction(id, buildingId, complianceYearId);
+        if (result.error) {
+          toast.error(result.error);
+        } else {
+          toast.success("Deduction deleted");
+          router.refresh();
+        }
+      },
+    });
   };
 
   return (
@@ -191,6 +197,7 @@ export function DeductionsClient({
           </Table>
         </CardContent>
       </Card>
+      <ConfirmDialog {...confirmProps} />
     </div>
   );
 }

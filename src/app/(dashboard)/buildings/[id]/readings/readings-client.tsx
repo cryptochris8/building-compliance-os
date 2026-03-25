@@ -25,6 +25,7 @@ import { ReadingChart } from "@/components/readings/reading-chart";
 import { deleteReading } from "@/app/actions/readings";
 import { normalizeToKbtu } from "@/lib/utils/unit-conversion";
 import { Pagination } from "@/components/ui/pagination";
+import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ReadingData {
   id: string;
@@ -110,10 +111,14 @@ export function ReadingsPageClient({
     return acc;
   }, {} as Record<string, number>);
 
-  const handleDelete = async (readingId: string) => {
-    if (confirm("Are you sure you want to delete this reading?")) {
-      await deleteReading(readingId, buildingId);
-    }
+  const [confirmProps, showConfirm] = useConfirmDialog();
+
+  const handleDelete = (readingId: string) => {
+    showConfirm({
+      title: "Delete Reading",
+      description: "Are you sure you want to delete this reading? This action cannot be undone.",
+      onConfirm: () => deleteReading(readingId, buildingId),
+    });
   };
 
   return (
@@ -214,6 +219,7 @@ export function ReadingsPageClient({
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         </CardContent>
       </Card>
+      <ConfirmDialog {...confirmProps} />
     </div>
   );
 }

@@ -176,13 +176,22 @@ export async function calculateBuildingCompliance(
  */
 export async function recalculateAllBuildings(orgId: string, year: number): Promise<ComplianceResultWithBreakdown[]> {
   const orgBuildings = await db.select({ id: buildings.id }).from(buildings).where(eq(buildings.organizationId, orgId));
+
+  // Process buildings in parallel with concurrency limit of 5
   const results: ComplianceResultWithBreakdown[] = [];
-  for (const b of orgBuildings) {
-    try {
-      const r = await calculateBuildingCompliance(b.id, year);
-      results.push(r);
-    } catch (err) {
-      console.error('Failed to calculate compliance for building ' + b.id + ':', err instanceof Error ? err.message : err);
+  const CONCURRENCY = 5;
+  for (let i = 0; i < orgBuildings.length; i += CONCURRENCY) {
+    const batch = orgBuildings.slice(i, i + CONCURRENCY);
+    const batchResults = await Promise.allSettled(
+      batch.map((b) => calculateBuildingCompliance(b.id, year))
+    );
+    for (let j = 0; j < batchResults.length; j++) {
+      if (batchResults[j].status === 'fulfilled') {
+        results.push((batchResults[j] as PromiseFulfilledResult<ComplianceResultWithBreakdown>).value);
+      } else {
+        console.error('Failed to calculate compliance for building ' + batch[j].id + ':',
+          ((batchResults[j] as PromiseRejectedResult).reason as Error)?.message ?? batchResults[j]);
+      }
     }
   }
   return results;

@@ -34,7 +34,7 @@ function SidebarContent({ pathname, onLogout, userEmail }: { pathname: string; o
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center px-6">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <ShieldCheck className="h-8 w-8 text-primary" />
+          <ShieldCheck className="h-8 w-8 text-primary" aria-hidden="true" />
           <div>
             <h1 className="text-lg font-bold leading-none">Compliance OS</h1>
             <p className="text-xs text-muted-foreground">Building Performance</p>
@@ -59,7 +59,7 @@ function SidebarContent({ pathname, onLogout, userEmail }: { pathname: string; o
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className="h-4 w-4" aria-hidden="true" />
               {item.name}
             </Link>
           );
@@ -80,7 +80,7 @@ function SidebarContent({ pathname, onLogout, userEmail }: { pathname: string; o
           className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
           onClick={onLogout}
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4" aria-hidden="true" />
           Log Out
         </Button>
         <p className="text-xs text-muted-foreground">
