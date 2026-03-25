@@ -1,55 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
-import { db } from '@/lib/db';
-import { users, organizations } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
 import {
   createCheckoutSession,
   createPortalSession,
   getSubscription,
 } from '@/lib/stripe/client';
 import { apiLimiter } from '@/lib/rate-limit';
+import { getAuthContextWithBilling } from '@/lib/auth/helpers';
 
 const checkoutSchema = z.object({
   priceId: z.string().min(1, 'priceId is required'),
 });
 
-async function getAuthOrgId(): Promise<{
-  orgId: string;
-  email: string;
-  stripeCustomerId: string | null;
-} | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const [dbUser] = await db
-    .select({ organizationId: users.organizationId })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
-  if (!dbUser?.organizationId) return null;
-
-  const [org] = await db
-    .select({ stripeCustomerId: organizations.stripeCustomerId })
-    .from(organizations)
-    .where(eq(organizations.id, dbUser.organizationId))
-    .limit(1);
-
-  return {
-    orgId: dbUser.organizationId,
-    email: user.email ?? '',
-    stripeCustomerId: org?.stripeCustomerId ?? null,
-  };
-}
-
 // POST: Create checkout session
 export async function POST(request: NextRequest) {
   try {
-    const auth = await getAuthOrgId();
+    const auth = await getAuthContextWithBilling();
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -73,15 +39,15 @@ export async function POST(request: NextRequest) {
     const url = await createCheckoutSession(auth.orgId, priceId, auth.email);
     return NextResponse.json({ url });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Billing checkout failed:', err);
+    return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 });
   }
 }
 
 // GET: Manage billing portal or get subscription status
 export async function GET(request: NextRequest) {
   try {
-    const auth = await getAuthOrgId();
+    const auth = await getAuthContextWithBilling();
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -123,7 +89,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(sub);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Billing GET failed:', err);
+    return NextResponse.json({ error: 'Failed to retrieve billing information' }, { status: 500 });
   }
 }

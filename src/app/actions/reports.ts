@@ -3,9 +3,7 @@
 import { db } from "@/lib/db";
 import { buildings, complianceYears } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { getAuthUser, assertBuildingAccess, getUserOrgId, type UserRole } from "@/lib/auth/helpers";
-
-const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
+import { getAuthUser, assertBuildingAccess, getUserOrgId, WRITE_ROLES } from "@/lib/auth/helpers";
 
 export async function getReportHistory(buildingId: string) {
   const authUser = await getAuthUser();

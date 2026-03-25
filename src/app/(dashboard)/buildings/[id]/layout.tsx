@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 const BUILDING_TABS = [
   { label: "Overview", segment: "" },
@@ -24,10 +25,28 @@ export default function BuildingLayout({
   const buildingId = params.id as string;
   const basePath = "/buildings/" + buildingId;
 
+  // Determine active tab for breadcrumb
+  const activeTab = BUILDING_TABS.find((tab) =>
+    tab.segment === ""
+      ? pathname === basePath
+      : pathname.startsWith(basePath + tab.segment)
+  );
+
+  const breadcrumbItems = [
+    { label: "Buildings", href: "/buildings" },
+    { label: "Building Details", href: basePath },
+    ...(activeTab && activeTab.segment !== ""
+      ? [{ label: activeTab.label }]
+      : []),
+  ];
+
   return (
     <div className="space-y-6">
+      {/* Breadcrumb Navigation */}
+      <Breadcrumb items={breadcrumbItems} />
+
       {/* Tab Navigation */}
-      <nav className="flex border-b overflow-x-auto">
+      <nav aria-label="Building sections" className="flex border-b overflow-x-auto">
         {BUILDING_TABS.map((tab) => {
           const href = basePath + tab.segment;
           const isActive = tab.segment === ""

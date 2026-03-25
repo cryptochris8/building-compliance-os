@@ -6,10 +6,8 @@ import { utilityReadings, complianceYears } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { triggerRecalculation } from '@/lib/emissions/recalculation';
-import { getAuthUser, assertBuildingAccess, type UserRole } from '@/lib/auth/helpers';
+import { getAuthUser, assertBuildingAccess, WRITE_ROLES } from '@/lib/auth/helpers';
 import { actionLimiter } from '@/lib/rate-limit';
-
-const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
 export const readingFormSchema = z.object({
   utilityAccountId: z.string().min(1, 'Utility account is required'),

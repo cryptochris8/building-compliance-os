@@ -94,7 +94,7 @@ export default async function CompliancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Compliance Calendar</h2>
+        <h1 className="text-3xl font-bold tracking-tight">Compliance Calendar</h1>
         <p className="text-muted-foreground">
           Track compliance deadlines and status across all buildings.
         </p>

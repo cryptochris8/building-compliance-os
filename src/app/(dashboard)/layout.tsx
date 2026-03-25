@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,6 +11,7 @@ import {
   Settings,
   Menu,
   LogOut,
+  User,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -28,7 +29,7 @@ const navigation = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-function SidebarContent({ pathname, onLogout }: { pathname: string; onLogout: () => void }) {
+function SidebarContent({ pathname, onLogout, userEmail }: { pathname: string; onLogout: () => void; userEmail: string | null }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center px-6">
@@ -66,6 +67,14 @@ function SidebarContent({ pathname, onLogout }: { pathname: string; onLogout: ()
       </nav>
       <Separator />
       <div className="p-4 space-y-3">
+        {userEmail && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50">
+            <User className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+            <span className="text-xs text-muted-foreground truncate" title={userEmail}>
+              {userEmail}
+            </span>
+          </div>
+        )}
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
@@ -90,6 +99,14 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserEmail(user?.email ?? null);
+    });
+  }, []);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -100,12 +117,12 @@ export default function DashboardLayout({
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <aside className="hidden w-64 border-r bg-card lg:block">
-        <SidebarContent pathname={pathname} onLogout={handleLogout} />
+        <SidebarContent pathname={pathname} onLogout={handleLogout} userEmail={userEmail} />
       </aside>
 
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent side="left" className="w-64 p-0">
-          <SidebarContent pathname={pathname} onLogout={handleLogout} />
+          <SidebarContent pathname={pathname} onLogout={handleLogout} userEmail={userEmail} />
         </SheetContent>
       </Sheet>
 

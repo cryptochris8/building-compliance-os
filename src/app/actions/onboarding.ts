@@ -1,9 +1,9 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db';
-import { users, buildings } from '@/lib/db/schema';
+import { buildings } from '@/lib/db/schema';
 import { eq, count } from 'drizzle-orm';
+import { getUserOrgId } from '@/lib/auth/helpers';
 
 interface OnboardingStatus {
   completed: boolean;
@@ -12,23 +12,8 @@ interface OnboardingStatus {
   hasReadings: boolean;
 }
 
-async function getOrgId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const [dbUser] = await db
-    .select({ organizationId: users.organizationId })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
-  return dbUser?.organizationId ?? null;
-}
-
 export async function getOnboardingStatus(): Promise<OnboardingStatus> {
-  const orgId = await getOrgId();
+  const orgId = await getUserOrgId();
   if (!orgId) {
     return { completed: false, currentStep: 1, hasBuilding: false, hasReadings: false };
   }

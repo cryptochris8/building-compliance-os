@@ -104,7 +104,7 @@ export default async function BuildingsPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Buildings</h2>
+          <h1 className="text-3xl font-bold tracking-tight">Buildings</h1>
           <p className="text-muted-foreground">
             Manage your building portfolio and track compliance.
           </p>

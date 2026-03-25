@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { importJobs } from "@/lib/db/schema";
 import { parseCsv, validateCsvHeaders } from "@/lib/csv/parser";
-import { assertBuildingAccess, type UserRole } from "@/lib/auth/helpers";
+import { assertBuildingAccess, WRITE_ROLES } from "@/lib/auth/helpers";
 import { checkAccess } from "@/lib/billing/feature-gate";
-
-const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 import { apiLimiter } from "@/lib/rate-limit";
 import { inngest } from "@/lib/inngest/client";
 

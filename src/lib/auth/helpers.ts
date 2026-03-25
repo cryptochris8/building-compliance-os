@@ -88,6 +88,33 @@ export async function assertBuildingAccess(
  * Verify multiple building IDs belong to the user's org.
  * Returns only the building IDs that belong to the org.
  */
+/**
+ * Standard write roles required for mutating operations.
+ */
+export const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
+
+/**
+ * Get auth context with Stripe billing information.
+ * Extends getAuthContext with org-level Stripe fields.
+ */
+export async function getAuthContextWithBilling() {
+  const ctx = await getAuthContext();
+  if (!ctx) return null;
+
+  const { organizations } = await import('@/lib/db/schema');
+  const [org] = await db.select({
+    stripeCustomerId: organizations.stripeCustomerId,
+    subscriptionTier: organizations.subscriptionTier,
+  }).from(organizations).where(eq(organizations.id, ctx.orgId)).limit(1);
+
+  return {
+    ...ctx,
+    email: ctx.user.email ?? '',
+    stripeCustomerId: org?.stripeCustomerId ?? null,
+    tier: (org?.subscriptionTier as string) ?? 'free',
+  };
+}
+
 export async function filterAuthorizedBuildingIds(buildingIds: string[]): Promise<{ orgId: string; authorizedIds: string[] } | null> {
   const ctx = await getAuthContext();
   if (!ctx) return null;

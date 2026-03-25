@@ -1,8 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db';
-import { users, organizations, subscriptions } from '@/lib/db/schema';
+import { subscriptions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import {
   createCheckoutSession as stripeCheckout,
@@ -10,40 +9,10 @@ import {
   PLAN_CONFIGS,
   type PlanTier,
 } from '@/lib/stripe/client';
-
-async function getAuthOrgInfo() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const [dbUser] = await db
-    .select({ organizationId: users.organizationId })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
-  if (!dbUser?.organizationId) return null;
-
-  const [org] = await db
-    .select({
-      stripeCustomerId: organizations.stripeCustomerId,
-      subscriptionTier: organizations.subscriptionTier,
-    })
-    .from(organizations)
-    .where(eq(organizations.id, dbUser.organizationId))
-    .limit(1);
-
-  return {
-    orgId: dbUser.organizationId,
-    email: user.email ?? '',
-    stripeCustomerId: org?.stripeCustomerId ?? null,
-    tier: (org?.subscriptionTier as PlanTier) ?? 'free',
-  };
-}
+import { getAuthContextWithBilling } from '@/lib/auth/helpers';
 
 export async function createCheckoutSessionAction(priceId: string) {
-  const auth = await getAuthOrgInfo();
+  const auth = await getAuthContextWithBilling();
   if (!auth) return { error: 'Unauthorized' };
 
   try {
@@ -55,7 +24,7 @@ export async function createCheckoutSessionAction(priceId: string) {
 }
 
 export async function createPortalSessionAction() {
-  const auth = await getAuthOrgInfo();
+  const auth = await getAuthContextWithBilling();
   if (!auth) return { error: 'Unauthorized' };
   if (!auth.stripeCustomerId) return { error: 'No active billing account' };
 
@@ -68,7 +37,7 @@ export async function createPortalSessionAction() {
 }
 
 export async function getSubscriptionStatus() {
-  const auth = await getAuthOrgInfo();
+  const auth = await getAuthContextWithBilling();
   if (!auth) return null;
 
   let trialEnd: Date | null = null;
@@ -86,7 +55,7 @@ export async function getSubscriptionStatus() {
     }
   }
 
-  const plan = PLAN_CONFIGS[auth.tier] ?? PLAN_CONFIGS.free;
+  const plan = PLAN_CONFIGS[auth.tier as PlanTier] ?? PLAN_CONFIGS.free;
 
   return {
     tier: auth.tier,

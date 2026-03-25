@@ -5,10 +5,8 @@ import { db } from '@/lib/db';
 import { deductions, complianceYears, complianceActivities } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { getAuthUser, assertBuildingAccess, getAuthContext, type UserRole } from '@/lib/auth/helpers';
+import { getAuthUser, assertBuildingAccess, getAuthContext, WRITE_ROLES } from '@/lib/auth/helpers';
 import { actionLimiter } from '@/lib/rate-limit';
-
-const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
 type TxClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
 

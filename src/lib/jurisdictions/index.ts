@@ -1,8 +1,10 @@
 import type { JurisdictionConfig } from './types';
 import { nycLL97 } from './nyc-ll97';
+import { bostonBERDO } from './boston-berdo';
 
 export type { JurisdictionConfig, CarbonCoefficients, EmissionsLimits, CompliancePeriod } from './types';
 export { nycLL97 } from './nyc-ll97';
+export { bostonBERDO } from './boston-berdo';
 
 /**
  * Registry of all supported jurisdictions.
@@ -10,6 +12,7 @@ export { nycLL97 } from './nyc-ll97';
  */
 export const jurisdictionRegistry: Record<string, JurisdictionConfig> = {
   'nyc-ll97': nycLL97,
+  'boston-berdo': bostonBERDO,
 };
 
 /**

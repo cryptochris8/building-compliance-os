@@ -1,23 +1,18 @@
 import { getJurisdiction } from '@/lib/jurisdictions';
 import type { CarbonCoefficients, CompliancePeriod } from '@/lib/jurisdictions/types';
+import { thermsToKbtu, gallonsOilToKbtu } from '@/lib/utils/unit-conversion';
 
-// ============================================================
-// Unit Conversion Helpers
-// ============================================================
-
-/** Convert therms to kBtu */
-export function thermsToKbtu(therms: number): number {
-  return therms * 100;
-}
+// Re-export for backwards compatibility
+export { thermsToKbtu };
 
 /** Convert gallons of fuel oil #2 to kBtu */
 export function fuelOil2GallonsToKbtu(gallons: number): number {
-  return gallons * 138.5;
+  return gallonsOilToKbtu(gallons, 'fuel_oil_2');
 }
 
 /** Convert gallons of fuel oil #4 to kBtu */
 export function fuelOil4GallonsToKbtu(gallons: number): number {
-  return gallons * 145.1;
+  return gallonsOilToKbtu(gallons, 'fuel_oil_4');
 }
 
 /** Convert Mlb (thousand pounds) of district steam to kBtu */

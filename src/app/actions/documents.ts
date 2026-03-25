@@ -6,9 +6,7 @@ import { documents } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getAuthUser, assertBuildingAccess, type UserRole } from '@/lib/auth/helpers';
-
-const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
+import { getAuthUser, assertBuildingAccess, WRITE_ROLES } from '@/lib/auth/helpers';
 
 // ============================================================
 // Zod Validation Schema for Document Upload

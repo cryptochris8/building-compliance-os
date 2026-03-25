@@ -76,12 +76,12 @@ export default function PortfolioManagerSettingsPage() {
     });
   };
 
-  if (loading) return (<div className="space-y-6"><div><h2 className="text-3xl font-bold tracking-tight">Portfolio Manager</h2><p className="text-muted-foreground">Loading...</p></div></div>);
+  if (loading) return (<div className="space-y-6"><div><h1 className="text-3xl font-bold tracking-tight">Portfolio Manager</h1><p className="text-muted-foreground">Loading...</p></div></div>);
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Portfolio Manager</h2>
+        <h1 className="text-3xl font-bold tracking-tight">Portfolio Manager</h1>
         <p className="text-muted-foreground">Connect your EPA ENERGY STAR Portfolio Manager account to import building data.</p>
       </div>
 

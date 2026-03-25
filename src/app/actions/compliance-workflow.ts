@@ -5,10 +5,8 @@ import { complianceYears, complianceActivities } from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service';
-import { getAuthUser, assertBuildingAccess, getAuthContext, filterAuthorizedBuildingIds, assertRole, type UserRole } from '@/lib/auth/helpers';
+import { getAuthUser, assertBuildingAccess, getAuthContext, filterAuthorizedBuildingIds, assertRole, WRITE_ROLES } from '@/lib/auth/helpers';
 import { actionLimiter } from '@/lib/rate-limit';
-
-const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
 async function logActivity(
   buildingId: string,

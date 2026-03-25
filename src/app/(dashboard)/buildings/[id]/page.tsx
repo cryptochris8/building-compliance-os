@@ -63,7 +63,7 @@ export default async function BuildingDetailPage({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">{building.name}</h2>
+        <h1 className="text-3xl font-bold tracking-tight">{building.name}</h1>
         <p className="text-muted-foreground">
           {building.addressLine1}, {building.city}, {building.state} {building.zip}
         </p>
