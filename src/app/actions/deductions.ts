@@ -53,10 +53,11 @@ export async function createDeduction(data: DeductionFormValues) {
   const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
-  // Check if compliance year is locked
+  // Check compliance year belongs to this building and is not locked
   const [cy] = await db.select().from(complianceYears)
-    .where(eq(complianceYears.id, data.complianceYearId)).limit(1);
-  if (cy?.locked) return { error: 'Compliance year is locked' };
+    .where(and(eq(complianceYears.id, data.complianceYearId), eq(complianceYears.buildingId, data.buildingId))).limit(1);
+  if (!cy) return { error: 'Compliance year not found for this building' };
+  if (cy.locked) return { error: 'Compliance year is locked' };
 
   try {
     const deduction = await db.transaction(async (tx) => {
@@ -97,13 +98,19 @@ export async function updateDeduction(id: string, data: DeductionFormValues) {
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized' };
 
+  // Validate input
+  const validated = deductionFormSchema.safeParse(data);
+  if (!validated.success) return { error: 'Validation failed' };
+
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
+  // Verify compliance year belongs to this building
   const [cy] = await db.select().from(complianceYears)
-    .where(eq(complianceYears.id, data.complianceYearId)).limit(1);
-  if (cy?.locked) return { error: 'Compliance year is locked' };
+    .where(and(eq(complianceYears.id, data.complianceYearId), eq(complianceYears.buildingId, data.buildingId))).limit(1);
+  if (!cy) return { error: 'Compliance year not found for this building' };
+  if (cy.locked) return { error: 'Compliance year is locked' };
 
   try {
     const deduction = await db.transaction(async (tx) => {

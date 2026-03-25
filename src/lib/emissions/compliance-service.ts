@@ -37,11 +37,6 @@ export async function calculateBuildingCompliance(
   const [building] = await db.select().from(buildings).where(eq(buildings.id, buildingId)).limit(1);
   if (!building) { throw new Error('Building not found: ' + buildingId); }
 
-  // Check if locked
-  const [existingCY] = await db.select({ locked: complianceYears.locked }).from(complianceYears)
-    .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year))).limit(1);
-  if (existingCY?.locked) { throw new Error('Compliance year ' + year + ' is locked'); }
-
   const grossSqft = Number(building.grossSqft);
   const occupancyType = building.occupancyType;
   const jurisdictionId = building.jurisdictionId;
@@ -68,13 +63,21 @@ export async function calculateBuildingCompliance(
     .from(utilityAccounts).where(eq(utilityAccounts.buildingId, buildingId));
   const accountTypeMap = new Map(accounts.map((a) => [a.id, a.utilityType]));
 
-  const readings: UtilityReadingInput[] = rawReadings.map((r) => ({
-    utilityType: accountTypeMap.get(r.utilityAccountId) || 'electricity',
-    consumptionValue: Number(r.consumptionValue),
-    consumptionUnit: r.consumptionUnit,
-    periodStart: r.periodStart,
-    periodEnd: r.periodEnd,
-  }));
+  const readings: UtilityReadingInput[] = [];
+  for (const r of rawReadings) {
+    const utilityType = accountTypeMap.get(r.utilityAccountId);
+    if (!utilityType) {
+      console.warn('Reading ' + r.id + ' references unknown account ' + r.utilityAccountId + ' — skipping');
+      continue;
+    }
+    readings.push({
+      utilityType,
+      consumptionValue: Number(r.consumptionValue),
+      consumptionUnit: r.consumptionUnit,
+      periodStart: r.periodStart,
+      periodEnd: r.periodEnd,
+    });
+  }
 
   const emissionsResult = calculateBuildingEmissions(readings, jurisdictionId, year);
 
@@ -106,10 +109,20 @@ export async function calculateBuildingCompliance(
     breakdownByMonth: emissionsResult.breakdownByMonth,
   };
 
-  // Upsert compliance year in a transaction
+  // Upsert compliance year in a transaction with lock check inside to prevent TOCTOU race
   await db.transaction(async (tx) => {
-    const existing = await tx.select({ id: complianceYears.id }).from(complianceYears)
-      .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year))).limit(1);
+    // Re-check lock inside transaction using FOR UPDATE to prevent race conditions
+    const existing = await tx.select({
+      id: complianceYears.id,
+      locked: complianceYears.locked,
+    }).from(complianceYears)
+      .where(and(eq(complianceYears.buildingId, buildingId), eq(complianceYears.year, year)))
+      .for('update')
+      .limit(1);
+
+    if (existing.length > 0 && existing[0].locked) {
+      throw new Error('Compliance year ' + year + ' is locked');
+    }
 
     // Calculate deductions
     let totalDeductionsTco2e = 0;

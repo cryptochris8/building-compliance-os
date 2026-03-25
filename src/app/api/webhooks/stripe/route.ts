@@ -7,13 +7,6 @@ import { eq } from 'drizzle-orm';
 import { webhookLimiter } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
-  // Rate limit: 100 webhook calls per minute per IP
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const { success } = await webhookLimiter.check(100, ip);
-  if (!success) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
-  }
-
   const stripe = getStripe();
   const body = await request.text();
   const sig = request.headers.get('stripe-signature');
@@ -23,12 +16,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing signature or secret' }, { status: 400 });
   }
 
+  // Verify signature FIRST before rate limiting to prevent DoS via forged requests
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: `Webhook signature verification failed: ${message}` }, { status: 400 });
+  } catch {
+    return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 });
+  }
+
+  // Rate limit AFTER signature verification (only authenticated Stripe requests count)
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  const { success } = await webhookLimiter.check(100, ip);
+  if (!success) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
 
   try {
@@ -45,12 +45,22 @@ export async function POST(request: NextRequest) {
           ? session.customer
           : session.customer?.toString() ?? '';
 
+        // Guard against null/empty subscriptionId (one-time payments or Stripe nulls)
+        if (!subscriptionId) break;
+
+        // Idempotency check: skip if this subscription was already processed
+        const [existingSub] = await db.select({ id: subscriptions.id })
+          .from(subscriptions)
+          .where(eq(subscriptions.stripeSubscriptionId, subscriptionId))
+          .limit(1);
+        if (existingSub) break;
+
         // Fetch the subscription to get price info
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
         const priceId = sub.items.data[0]?.price?.id ?? '';
         const tier = tierFromPriceId(priceId);
 
-        // Upsert subscription + org tier atomically
+        // Insert subscription + update org tier atomically
         await db.transaction(async (tx) => {
           await tx.insert(subscriptions).values({
             orgId,
@@ -146,8 +156,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Webhook handler error:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Webhook handler error:', err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
 }

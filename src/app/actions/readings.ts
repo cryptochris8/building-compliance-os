@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/db';
-import { utilityReadings, complianceYears } from '@/lib/db/schema';
+import { utilityReadings, utilityAccounts, complianceYears } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { triggerRecalculation } from '@/lib/emissions/recalculation';
@@ -57,6 +57,13 @@ export async function createReading(formData: ReadingFormValues) {
   const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
 
+  // Verify utilityAccountId belongs to this building
+  const [account] = await db.select({ id: utilityAccounts.id })
+    .from(utilityAccounts)
+    .where(and(eq(utilityAccounts.id, data.utilityAccountId), eq(utilityAccounts.buildingId, data.buildingId)))
+    .limit(1);
+  if (!account) return { error: 'Utility account not found or does not belong to this building' };
+
   // Check locked year
   if (await isYearLocked(data.buildingId, data.periodYear)) {
     return { error: 'Compliance year ' + data.periodYear + ' is locked. Unlock it before adding readings.' };
@@ -99,6 +106,13 @@ export async function updateReading(id: string, formData: ReadingFormValues) {
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
+
+  // Verify utilityAccountId belongs to this building
+  const [account] = await db.select({ id: utilityAccounts.id })
+    .from(utilityAccounts)
+    .where(and(eq(utilityAccounts.id, data.utilityAccountId), eq(utilityAccounts.buildingId, data.buildingId)))
+    .limit(1);
+  if (!account) return { error: 'Utility account not found or does not belong to this building' };
 
   if (await isYearLocked(data.buildingId, data.periodYear)) {
     return { error: 'Compliance year ' + data.periodYear + ' is locked. Unlock it before editing readings.' };
