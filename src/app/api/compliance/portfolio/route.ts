@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     const summary = await getComplianceSummary(dbUser.organizationId, year);
     return NextResponse.json(summary);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Portfolio summary failed:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

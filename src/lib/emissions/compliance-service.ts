@@ -12,6 +12,7 @@ import {
   type ComplianceResult,
 } from './calculator';
 import { calculateMixedUseLimit, type OccupancyMixEntry } from './mixed-use';
+import type { PortfolioSummary, PortfolioBuildingRow } from './types';
 
 export interface ComplianceResultWithBreakdown extends ComplianceResult {
   breakdownByFuel: Record<string, number>;
@@ -20,29 +21,7 @@ export interface ComplianceResultWithBreakdown extends ComplianceResult {
   year: number;
 }
 
-export interface PortfolioSummary {
-  totalBuildings: number;
-  compliantCount: number;
-  atRiskCount: number;
-  overLimitCount: number;
-  incompleteCount: number;
-  totalPenaltyExposure: number;
-  totalEmissions: number;
-  buildings: PortfolioBuildingRow[];
-}
-
-export interface PortfolioBuildingRow {
-  id: string;
-  name: string;
-  address: string;
-  grossSqft: number;
-  status: string;
-  totalEmissions: number;
-  emissionsLimit: number;
-  overUnder: number;
-  penalty: number;
-  completeness: number;
-}
+export type { PortfolioSummary, PortfolioBuildingRow };
 
 /**
  * Calculate and persist emissions compliance for a single building and year.
@@ -141,6 +120,18 @@ export async function calculateBuildingCompliance(
     }
 
     const netEmissions = Math.max(0, emissionsResult.totalEmissionsTco2e - totalDeductionsTco2e);
+
+    // Recalculate status, overLimit, and penalty based on net emissions (after deductions)
+    const netOverLimit = Math.max(0, netEmissions - limit);
+    const netStatus = missingMonths.length > 0 && calculateComplianceStatus(netEmissions, limit) === 'compliant'
+      ? 'incomplete' as const
+      : calculateComplianceStatus(netEmissions, limit);
+    const netPenalty = calculatePenalty(netEmissions, limit, jurisdictionId, year);
+
+    // Update the result object to reflect net emissions
+    result.status = netStatus;
+    result.emissionsOverLimit = Math.round(netOverLimit * 1000) / 1000;
+    result.estimatedPenaltyDollars = netPenalty;
 
     const complianceData = {
       buildingId, year, jurisdictionId,

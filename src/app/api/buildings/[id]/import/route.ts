@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { importJobs } from "@/lib/db/schema";
 import { parseCsv, validateCsvHeaders } from "@/lib/csv/parser";
 import { assertBuildingAccess, type UserRole } from "@/lib/auth/helpers";
+import { checkAccess } from "@/lib/billing/feature-gate";
 
 const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 import { apiLimiter } from "@/lib/rate-limit";
@@ -25,6 +26,12 @@ export async function POST(
     const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
     if (!access) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Enforce feature gate: CSV upload requires pro or portfolio tier
+    const hasAccess = await checkAccess(access.orgId, 'csvUpload');
+    if (!hasAccess) {
+      return NextResponse.json({ error: "CSV import requires a Pro or Portfolio plan. Please upgrade." }, { status: 403 });
     }
 
     // Parse multipart form data
@@ -86,7 +93,7 @@ export async function POST(
       fileName: file.name,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Import failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('CSV import failed:', error);
+    return NextResponse.json({ error: "Import failed" }, { status: 500 });
   }
 }

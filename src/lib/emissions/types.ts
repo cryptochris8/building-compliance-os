@@ -24,16 +24,6 @@ export interface PortfolioBuildingRow {
   completeness: number;
 }
 
-export interface ComplianceResultWithBreakdown {
-  totalEmissionsTco2e: number;
-  emissionsLimitTco2e: number;
-  emissionsOverLimit: number;
-  estimatedPenaltyDollars: number;
-  status: 'incomplete' | 'compliant' | 'at_risk' | 'over_limit';
-  dataCompletenessPct: number;
-  missingMonths: string[];
-  breakdownByFuel: Record<string, number>;
-  breakdownByMonth: Record<string, number>;
-  buildingId: string;
-  year: number;
-}
+// ComplianceResultWithBreakdown is defined in compliance-service.ts (extends ComplianceResult)
+// Re-export here so consumers can import from either location
+export type { ComplianceResultWithBreakdown } from './compliance-service';

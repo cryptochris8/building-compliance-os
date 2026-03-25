@@ -22,9 +22,9 @@ const GJ_TO_KBTU = 947.817;
 export function mapPMToLocalUnit(pmUnit: string): { unit: string; conversionFactor: number } {
   const mapped = PM_UNIT_MAP[pmUnit] || pmUnit;
   if (mapped === 'GJ') {
-    return { unit: 'kBtu', conversionFactor: GJ_TO_KBTU };
+    return { unit: 'kbtu', conversionFactor: GJ_TO_KBTU };
   }
-  return { unit: mapped, conversionFactor: 1 };
+  return { unit: mapped.toLowerCase(), conversionFactor: 1 };
 }
 
 /** Fetch PM properties and create/update mapping records */

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { filterAuthorizedBuildingIds } from "@/lib/auth/helpers";
+import { filterAuthorizedBuildingIds, getAuthContext } from "@/lib/auth/helpers";
+import { checkAccess } from "@/lib/billing/feature-gate";
 
 const bulkReportSchema = z.object({
   buildingIds: z.array(z.string().uuid()).min(1, "At least one building ID required"),
@@ -19,13 +20,19 @@ export async function POST(request: Request) {
     const auth = await filterAuthorizedBuildingIds(buildingIds);
     if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // Enforce feature gate: bulk operations require portfolio tier
+    const hasBulkAccess = await checkAccess(auth.orgId, 'bulkOperations');
+    if (!hasBulkAccess) {
+      return NextResponse.json({ error: "Bulk operations require a Portfolio plan. Please upgrade." }, { status: 403 });
+    }
+
     const results: Array<{ buildingId: string; url: string }> = [];
     for (const buildingId of auth.authorizedIds) {
       results.push({ buildingId, url: "/api/reports/" + buildingId + "?year=" + year });
     }
     return NextResponse.json({ reports: results, year });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Bulk report generation failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Bulk report generation failed:', error);
+    return NextResponse.json({ error: "Bulk report generation failed" }, { status: 500 });
   }
 }

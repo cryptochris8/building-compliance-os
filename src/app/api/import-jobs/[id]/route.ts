@@ -41,7 +41,7 @@ export async function GET(
       completedAt: job.completedAt,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to get import job";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Import job lookup failed:', error);
+    return NextResponse.json({ error: "Failed to get import job" }, { status: 500 });
   }
 }

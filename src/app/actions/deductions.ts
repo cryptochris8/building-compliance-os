@@ -6,6 +6,7 @@ import { deductions, complianceYears, complianceActivities } from '@/lib/db/sche
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { getAuthUser, assertBuildingAccess, getAuthContext, type UserRole } from '@/lib/auth/helpers';
+import { actionLimiter } from '@/lib/rate-limit';
 
 const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
@@ -42,6 +43,9 @@ export type DeductionFormValues = z.infer<typeof deductionFormSchema>;
 export async function createDeduction(data: DeductionFormValues) {
   const ctx = await getAuthContext();
   if (!ctx) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(20, 'action:deduction:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Validate input first
   const validated = deductionFormSchema.safeParse(data);

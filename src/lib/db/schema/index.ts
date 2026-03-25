@@ -92,6 +92,7 @@ export const utilityReadings = pgTable('utility_readings', {
 }, (table) => [
   uniqueIndex('unique_reading').on(table.utilityAccountId, table.periodStart, table.periodEnd),
   index('idx_utility_readings_building_id').on(table.buildingId),
+  index('idx_utility_readings_building_period').on(table.buildingId, table.periodStart, table.periodEnd),
 ]);
 
 // Compliance Years

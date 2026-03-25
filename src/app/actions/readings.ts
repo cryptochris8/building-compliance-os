@@ -7,6 +7,7 @@ import { eq, and } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { triggerRecalculation } from '@/lib/emissions/recalculation';
 import { getAuthUser, assertBuildingAccess, type UserRole } from '@/lib/auth/helpers';
+import { actionLimiter } from '@/lib/rate-limit';
 
 const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
@@ -46,6 +47,9 @@ async function isYearLocked(buildingId: string, year: number): Promise<boolean> 
 export async function createReading(formData: ReadingFormValues) {
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(20, 'action:reading:' + user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   const validated = readingFormSchema.safeParse(formData);
   if (!validated.success) return { error: 'Validation failed', details: validated.error.flatten() };

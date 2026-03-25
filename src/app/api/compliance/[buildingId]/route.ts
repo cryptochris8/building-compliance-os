@@ -51,8 +51,8 @@ export async function GET(
     }
     return NextResponse.json(cy);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Compliance GET failed:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -73,7 +73,12 @@ export async function POST(
     const result = await calculateBuildingCompliance(buildingId, year);
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Recalculation failed';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Compliance recalculation failed:', error);
+    // Allow specific business logic errors (locked year, building not found) to pass through
+    const msg = error instanceof Error ? error.message : '';
+    if (msg.includes('locked') || msg.includes('not found')) {
+      return NextResponse.json({ error: msg }, { status: 409 });
+    }
+    return NextResponse.json({ error: 'Recalculation failed' }, { status: 500 });
   }
 }

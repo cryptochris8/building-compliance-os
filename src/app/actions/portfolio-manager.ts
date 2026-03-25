@@ -8,6 +8,7 @@ import { PMClient } from "@/lib/portfolio-manager/client";
 import { syncProperties, syncMeterData } from "@/lib/portfolio-manager/sync";
 import { getUserOrgId, assertBuildingAccess, assertRole } from "@/lib/auth/helpers";
 import { encrypt } from "@/lib/auth/encryption";
+import { checkAccess } from "@/lib/billing/feature-gate";
 
 export async function connectPM(formData: FormData) {
   const ctx = await assertRole('owner', 'admin');
@@ -60,8 +61,13 @@ export async function disconnectPM() {
 }
 
 export async function syncPMProperties() {
-  const orgId = await getUserOrgId();
-  if (!orgId) return { error: "Unauthorized" };
+  const ctx = await assertRole('owner', 'admin');
+  if (!ctx) return { error: "Unauthorized: owner or admin role required" };
+  const orgId = ctx.orgId;
+
+  // Enforce feature gate: PM sync requires pro or portfolio tier
+  const hasAccess = await checkAccess(orgId, 'pmSync');
+  if (!hasAccess) return { error: "Portfolio Manager sync requires a Pro or Portfolio plan." };
 
   try {
     const properties = await syncProperties(orgId);

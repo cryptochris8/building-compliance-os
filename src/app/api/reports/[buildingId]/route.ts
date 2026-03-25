@@ -9,6 +9,8 @@ import { ComplianceReportDocument } from "@/lib/reports/compliance-report";
 import type { ReportData } from "@/lib/reports/compliance-report";
 import { assertBuildingAccess } from "@/lib/auth/helpers";
 import { apiLimiter } from "@/lib/rate-limit";
+import { checkAccess } from "@/lib/billing/feature-gate";
+import { calculateBuildingEmissions, type UtilityReadingInput } from "@/lib/emissions/calculator";
 
 const yearParamSchema = z.coerce.number().int().min(2000).max(2100);
 
@@ -28,6 +30,12 @@ export async function GET(
     // Verify building ownership
     const access = await assertBuildingAccess(buildingId);
     if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Enforce feature gate: report generation requires pro or portfolio tier
+    const hasAccess = await checkAccess(access.orgId, 'reportGeneration');
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Report generation requires a Pro or Portfolio plan. Please upgrade." }, { status: 403 });
+    }
 
     const url = new URL(request.url);
     const yearResult = yearParamSchema.safeParse(url.searchParams.get("year") || new Date().getFullYear());
@@ -76,14 +84,24 @@ export async function GET(
     const docs = await db.select().from(documents)
       .where(eq(documents.buildingId, buildingId));
 
-    // Build emissions by fuel
-    const fuelTotals: Record<string, { consumption: number; unit: string; emissions: number }> = {};
+    // Build emissions by fuel using actual carbon coefficients from the calculator
+    const readingInputs: UtilityReadingInput[] = readings.map((r) => ({
+      utilityType: accountTypeMap.get(r.utilityAccountId) || "electricity",
+      consumptionValue: Number(r.consumptionValue),
+      consumptionUnit: r.consumptionUnit,
+      periodStart: r.periodStart,
+      periodEnd: r.periodEnd,
+    }));
+
+    const emissionsCalc = calculateBuildingEmissions(readingInputs, building.jurisdictionId, year);
+
+    const fuelTotals: Record<string, { consumption: number; unit: string }> = {};
     const monthlyData: Record<string, Record<string, number>> = {};
 
     for (const r of readings) {
       const utilType = accountTypeMap.get(r.utilityAccountId) || "electricity";
       const val = Number(r.consumptionValue);
-      if (!fuelTotals[utilType]) fuelTotals[utilType] = { consumption: 0, unit: r.consumptionUnit, emissions: 0 };
+      if (!fuelTotals[utilType]) fuelTotals[utilType] = { consumption: 0, unit: r.consumptionUnit };
       fuelTotals[utilType].consumption += val;
 
       const month = r.periodStart.substring(0, 7);
@@ -95,15 +113,14 @@ export async function GET(
       monthlyData[month][key] = (monthlyData[month][key] || 0) + val;
     }
 
-    const totalEmissions = Number(cy.totalEmissionsTco2e || 0);
-    const totalConsumption = Object.values(fuelTotals).reduce((s, f) => s + f.consumption, 0);
+    const totalEmissions = emissionsCalc.totalEmissionsTco2e;
     const emissionsByFuel = Object.entries(fuelTotals).map(([type, data]) => ({
       utilityType: type.replace("_", " "),
       annualConsumption: data.consumption,
       unit: data.unit,
       coefficient: 0,
-      emissions: totalConsumption > 0 ? (data.consumption / totalConsumption) * totalEmissions : 0,
-      percentOfTotal: totalConsumption > 0 ? (data.consumption / totalConsumption) * 100 : 0,
+      emissions: emissionsCalc.breakdownByFuel[type] || 0,
+      percentOfTotal: totalEmissions > 0 ? ((emissionsCalc.breakdownByFuel[type] || 0) / totalEmissions) * 100 : 0,
     }));
 
     const months = [];
@@ -195,7 +212,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Report generation failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Report generation failed:', error);
+    return NextResponse.json({ error: "Report generation failed" }, { status: 500 });
   }
 }

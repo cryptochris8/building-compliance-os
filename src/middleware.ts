@@ -21,11 +21,13 @@ function isPublicRoute(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Skip auth for static files (specific extensions only to prevent bypass via dots in URLs)
+  const STATIC_EXT = /\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|map)$/;
   if (
     isPublicRoute(pathname) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/webhooks") ||
-    pathname.includes(".")
+    STATIC_EXT.test(pathname)
   ) {
     return NextResponse.next();
   }

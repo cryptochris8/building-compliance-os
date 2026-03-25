@@ -6,6 +6,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service';
 import { getAuthUser, assertBuildingAccess, getAuthContext, filterAuthorizedBuildingIds, assertRole, type UserRole } from '@/lib/auth/helpers';
+import { actionLimiter } from '@/lib/rate-limit';
 
 const WRITE_ROLES: UserRole[] = ['owner', 'admin'];
 
@@ -196,6 +197,10 @@ export async function bulkRecalculate(
   // Verify auth + role (owner/admin required for write operations)
   const ctx = await getAuthContext();
   if (!ctx) return { error: 'Unauthorized' };
+
+  // Rate limit: bulk recalculation is expensive
+  const { success: rlOk } = await actionLimiter.check(5, 'action:bulk-recalc:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
   if (!WRITE_ROLES.includes(ctx.role)) return { error: 'Insufficient permissions: owner or admin role required' };
 
   // Verify all building IDs belong to the user's org
