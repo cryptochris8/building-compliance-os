@@ -7,6 +7,7 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 const BUILDING_TABS = [
   { label: "Overview", segment: "" },
+  { label: "Accounts", segment: "/accounts" },
   { label: "Readings", segment: "/readings" },
   { label: "Import", segment: "/import" },
   { label: "Documents", segment: "/documents" },
