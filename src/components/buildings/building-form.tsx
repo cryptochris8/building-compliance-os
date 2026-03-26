@@ -64,12 +64,14 @@ interface BuildingFormProps {
   defaultValues?: Partial<BuildingFormValues>;
   onSubmit: (values: BuildingFormValues) => void;
   isSubmitting?: boolean;
+  onCancel?: () => void;
 }
 
 export function BuildingForm({
   defaultValues,
   onSubmit,
   isSubmitting = false,
+  onCancel,
 }: BuildingFormProps) {
   const form = useForm<BuildingFormValues>({
     resolver: zodResolver(buildingFormSchema),
@@ -302,6 +304,7 @@ export function BuildingForm({
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="nyc-ll97">NYC Local Law 97</SelectItem>
+                      <SelectItem value="boston-berdo">Boston BERDO 2.0</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormDescription>Applicable building performance standard</FormDescription>
@@ -325,7 +328,7 @@ export function BuildingForm({
         </Card>
 
         <div className="flex justify-end gap-4">
-          <Button type="button" variant="outline">
+          <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>

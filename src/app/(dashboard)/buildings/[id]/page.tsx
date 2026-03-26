@@ -2,8 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, Plus, Building2, Zap, Flame, Droplets } from "lucide-react";
+import { AlertTriangle, Plus, Building2, Zap, Flame, Droplets, Pencil } from "lucide-react";
 import { detectGaps, getMonthName } from "@/lib/validation/gap-detector";
 import { db } from "@/lib/db";
 import { buildings, utilityAccounts, utilityReadings } from "@/lib/db/schema";
@@ -62,11 +63,19 @@ export default async function BuildingDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{building.name}</h1>
-        <p className="text-muted-foreground">
-          {building.addressLine1}, {building.city}, {building.state} {building.zip}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{building.name}</h1>
+          <p className="text-muted-foreground">
+            {building.addressLine1}, {building.city}, {building.state} {building.zip}
+          </p>
+        </div>
+        <Link href={"/buildings/" + id + "/edit"}>
+          <Button variant="outline" size="sm">
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit Building
+          </Button>
+        </Link>
       </div>
 
       {gapReport.overallCompleteness < 100 && (
