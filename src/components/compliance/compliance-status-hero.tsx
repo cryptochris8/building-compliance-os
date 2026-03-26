@@ -43,7 +43,7 @@ export function ComplianceStatusHero({
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Estimated Penalty</p>
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{"$" + penalty.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-destructive">{"$" + penalty.toLocaleString()}</p>
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { assertBuildingAccess, WRITE_ROLES } from "@/lib/auth/helpers";
 import { checkAccess } from "@/lib/billing/feature-gate";
 import { apiLimiter } from "@/lib/rate-limit";
 import { inngest } from "@/lib/inngest/client";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(
   request: NextRequest,
@@ -61,23 +62,40 @@ export async function POST(
       );
     }
 
+    // Upload CSV content to Supabase Storage (avoids Inngest payload limits)
+    const storagePath = "imports/" + buildingId + "/" + Date.now() + "-" + file.name;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { error: uploadError } = await supabase.storage
+      .from("documents")
+      .upload(storagePath, csvText, {
+        contentType: "text/csv",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      return NextResponse.json({ error: "Failed to store CSV file" }, { status: 500 });
+    }
+
     // Create a pending import job
     const [job] = await db.insert(importJobs).values({
       organizationId: access.orgId,
       buildingId,
       fileName: file.name,
-      filePath: "imports/" + buildingId + "/" + Date.now() + "-" + file.name,
+      filePath: storagePath,
       status: "processing",
       rowsTotal: parsed.rows.length,
     }).returning();
 
-    // Send to Inngest for background processing
+    // Send to Inngest — only pass the storage path, not the full CSV data
     await inngest.send({
       name: "csv/import.requested",
       data: {
         jobId: job.id,
         buildingId,
-        rows: parsed.rows,
+        storagePath,
         parseErrors: parsed.errors,
       },
     });

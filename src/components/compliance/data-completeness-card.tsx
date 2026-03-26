@@ -25,7 +25,7 @@ export function DataCompletenessCard({ completeness, missingMonths }: DataComple
             {missingMonths.map((m) => {
               const monthIdx = parseInt(m.split("-")[1]) - 1;
               return (
-                <Badge key={m} variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-300">
+                <Badge key={m} variant="outline" className="text-amber-800 dark:text-amber-300 border-amber-400 dark:border-amber-600">
                   {MONTH_NAMES[monthIdx]} {m.split("-")[0]}
                 </Badge>
               );

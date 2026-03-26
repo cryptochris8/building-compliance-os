@@ -102,6 +102,10 @@ export function WhatIfCalculator({
                 <input
                   type="range"
                   id={"slider-" + fuel}
+                  aria-label={"Reduce " + (FUEL_LABELS[fuel] || fuel) + " by percentage"}
+                  aria-valuemin={0}
+                  aria-valuemax={50}
+                  aria-valuenow={reductions[fuel] || 0}
                   min="0"
                   max="50"
                   value={reductions[fuel] || 0}
@@ -137,7 +141,7 @@ export function WhatIfCalculator({
                 {projections.newTotal.toFixed(2)} tCO2e
               </p>
               {projections.emissionsReduced > 0 && (
-                <Badge variant="default" className="bg-green-600">
+                <Badge variant="default" className="bg-green-700 dark:bg-green-600">
                   -{projections.emissionsReduced.toFixed(2)} tCO2e
                 </Badge>
               )}
@@ -148,7 +152,7 @@ export function WhatIfCalculator({
                 {"$" + projections.newPenalty.toLocaleString()}
               </p>
               {projections.newPenalty < currentPenalty && (
-                <Badge variant="default" className="bg-green-600">
+                <Badge variant="default" className="bg-green-700 dark:bg-green-600">
                   Save {"$" + projections.savings.toLocaleString()}
                 </Badge>
               )}

@@ -1,7 +1,9 @@
 import { inngest } from './client';
 import { db } from '@/lib/db';
 import { importJobs, utilityAccounts, utilityReadings } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
+import { parseCsv } from '@/lib/csv/parser';
 
 const VALID_UTILITY_TYPES = ["electricity", "natural_gas", "district_steam", "fuel_oil_2", "fuel_oil_4"];
 const VALID_UNITS = ["kwh", "therms", "kbtu", "gallons"];
@@ -15,12 +17,34 @@ export const processCsvImport = inngest.createFunction(
   { id: 'process-csv-import', retries: 1 },
   { event: 'csv/import.requested' },
   async ({ event }) => {
-    const { jobId, buildingId, rows, parseErrors } = event.data as {
+    const { jobId, buildingId, storagePath, parseErrors } = event.data as {
       jobId: string;
       buildingId: string;
-      rows: Record<string, string>[];
+      storagePath: string;
       parseErrors: { row: number; message: string }[];
     };
+
+    // Download CSV from Supabase Storage
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('documents')
+      .download(storagePath);
+
+    if (downloadError || !fileData) {
+      await db.update(importJobs).set({
+        status: 'failed',
+        errorLog: [{ row: 0, message: 'Failed to download CSV from storage: ' + (downloadError?.message ?? 'unknown') }],
+        completedAt: new Date(),
+      }).where(eq(importJobs.id, jobId));
+      throw new Error('Failed to download CSV: ' + downloadError?.message);
+    }
+
+    const csvText = await fileData.text();
+    const parsed = parseCsv(csvText);
+    const rows = parsed.rows;
 
     let rowsImported = 0;
     let rowsFailed = 0;
@@ -195,7 +219,7 @@ export const processCsvImport = inngest.createFunction(
       }
 
       await db.update(importJobs).set({
-        status: rowsFailed === rows.length ? "failed" : "completed",
+        status: rowsFailed > 0 && rowsImported === 0 ? "failed" : "completed",
         rowsImported,
         rowsFailed,
         errorLog: errorLog.length > 0 ? errorLog : null,

@@ -11,6 +11,8 @@ import { assertBuildingAccess } from "@/lib/auth/helpers";
 import { apiLimiter } from "@/lib/rate-limit";
 import { checkAccess } from "@/lib/billing/feature-gate";
 import { calculateBuildingEmissions, type UtilityReadingInput } from "@/lib/emissions/calculator";
+import { inngest } from "@/lib/inngest/client";
+import { randomUUID } from "crypto";
 
 const yearParamSchema = z.coerce.number().int().min(2000).max(2100);
 
@@ -44,6 +46,22 @@ export async function GET(
     }
     const year = yearResult.data;
 
+    // Async mode: offload to Inngest background job (non-blocking)
+    const asyncMode = url.searchParams.get("async") === "true";
+    if (asyncMode) {
+      const jobId = randomUUID();
+      await inngest.send({
+        name: "report/generate.requested",
+        data: { buildingId, year, jobId },
+      });
+      return NextResponse.json({
+        jobId,
+        status: "processing",
+        message: "Report generation started. The PDF will be available in Supabase Storage.",
+      }, { status: 202 });
+    }
+
+    // Synchronous mode: generate and stream PDF directly
     // Fetch building
     const [building] = await db.select().from(buildings)
       .where(eq(buildings.id, buildingId)).limit(1);
