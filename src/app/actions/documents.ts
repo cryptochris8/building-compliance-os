@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthUser, assertBuildingAccess, WRITE_ROLES } from '@/lib/auth/helpers';
 import { sanitizeErrorMessage } from '@/lib/utils/error';
+import { actionLimiter } from '@/lib/rate-limit';
 
 // ============================================================
 // Zod Validation Schema for Document Upload
@@ -34,6 +35,9 @@ export async function uploadDocument(formData: DocumentFormValues) {
   if (!user) {
     return { error: 'Unauthorized' };
   }
+
+  const { success: rlOk } = await actionLimiter.check(20, 'action:document:' + user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   const validated = documentFormSchema.safeParse(formData);
   if (!validated.success) {
@@ -76,6 +80,9 @@ export async function deleteDocument(id: string, buildingId: string) {
   if (!user) {
     return { error: 'Unauthorized' };
   }
+
+  const { success: rlOk } = await actionLimiter.check(20, 'action:document:' + user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(buildingId, WRITE_ROLES);

@@ -40,6 +40,7 @@ interface ComplianceDetailClientProps {
   jurisdictionId: string;
   selectedYear: number;
   availableYears: number[];
+  penaltyPerTon: number;
   complianceData: {
     id: string;
     status: string;
@@ -65,7 +66,7 @@ interface ComplianceDetailClientProps {
 
 export function ComplianceDetailClient({
   buildingId, buildingName, occupancyType, jurisdictionId,
-  selectedYear, availableYears, complianceData, readings, allComplianceYears,
+  selectedYear, availableYears, complianceData, readings, allComplianceYears, penaltyPerTon,
 }: ComplianceDetailClientProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -193,7 +194,7 @@ export function ComplianceDetailClient({
         breakdownByFuel={fuelBreakdown}
         totalEmissions={totalEmissions}
         emissionsLimit={emissionsLimit}
-        penaltyPerTon={268}
+        penaltyPerTon={penaltyPerTon}
         currentPenalty={penalty}
       />
     </div>

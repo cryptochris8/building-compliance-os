@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
   if (
     isPublicRoute(pathname) ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/webhooks") ||
+    pathname === "/api/webhooks/stripe" ||
     STATIC_EXT.test(pathname)
   ) {
     return NextResponse.next();
@@ -63,7 +63,10 @@ export async function middleware(request: NextRequest) {
 
   if (!user) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    // Validate redirect to prevent open redirect attacks
+    if (pathname.startsWith("/") && !pathname.startsWith("//") && !pathname.includes("://")) {
+      loginUrl.searchParams.set("redirect", pathname);
+    }
     return NextResponse.redirect(loginUrl);
   }
 

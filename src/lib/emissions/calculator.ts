@@ -220,7 +220,9 @@ export function calculateComplianceStatus(
   actualEmissions: number,
   limit: number
 ): 'incomplete' | 'compliant' | 'at_risk' | 'over_limit' {
-  if (actualEmissions <= 0) return 'incomplete';
+  if (actualEmissions < 0) return 'incomplete';
+  if (limit <= 0) return actualEmissions === 0 ? 'compliant' : 'over_limit';
+  if (actualEmissions === 0) return 'compliant';
   const ratio = actualEmissions / limit;
   if (ratio > 1.0) return 'over_limit';
   if (ratio > 0.9) return 'at_risk';

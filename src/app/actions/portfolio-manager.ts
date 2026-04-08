@@ -9,6 +9,7 @@ import { syncProperties, syncMeterData } from "@/lib/portfolio-manager/sync";
 import { getUserOrgId, assertBuildingAccess, assertRole } from "@/lib/auth/helpers";
 import { encrypt } from "@/lib/auth/encryption";
 import { checkAccess } from "@/lib/billing/feature-gate";
+import { sanitizeErrorMessage } from "@/lib/utils/error";
 
 export async function connectPM(formData: FormData) {
   const ctx = await assertRole('owner', 'admin');
@@ -45,8 +46,7 @@ export async function connectPM(formData: FormData) {
     revalidatePath("/settings/portfolio-manager");
     return { success: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Connection failed";
-    return { error: message };
+    return { error: sanitizeErrorMessage(error, "Portfolio Manager connection failed") };
   }
 }
 
@@ -74,8 +74,7 @@ export async function syncPMProperties() {
     revalidatePath("/settings/portfolio-manager");
     return { success: true, count: properties.length };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Sync failed";
-    return { error: message };
+    return { error: sanitizeErrorMessage(error, "Portfolio Manager sync failed") };
   }
 }
 
@@ -103,8 +102,9 @@ export async function linkProperty(pmPropertyId: string, buildingId: string) {
 }
 
 export async function unlinkProperty(pmPropertyId: string) {
-  const orgId = await getUserOrgId();
-  if (!orgId) return { error: "Unauthorized" };
+  const ctx = await assertRole('owner', 'admin');
+  if (!ctx) return { error: "Unauthorized: owner or admin role required" };
+  const orgId = ctx.orgId;
 
   const [mapping] = await db.select().from(pmPropertyMappings)
     .where(and(eq(pmPropertyMappings.orgId, orgId), eq(pmPropertyMappings.pmPropertyId, pmPropertyId)))
@@ -134,8 +134,7 @@ export async function importMeterData(pmPropertyId: string, buildingId: string) 
     revalidatePath("/buildings/" + buildingId + "/readings");
     return { success: true, imported: result.importedCount, meters: result.metersCount };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Import failed";
-    return { error: message };
+    return { error: sanitizeErrorMessage(error, "Meter data import failed") };
   }
 }
 

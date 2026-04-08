@@ -142,9 +142,21 @@ export async function POST(request: NextRequest) {
         const subscriptionId = subDetails?.subscription?.toString();
 
         if (subscriptionId) {
+          // Find the org associated with this subscription and downgrade
+          const [sub] = await db.select({ orgId: subscriptions.orgId })
+            .from(subscriptions)
+            .where(eq(subscriptions.stripeSubscriptionId, subscriptionId))
+            .limit(1);
+
           await db.update(subscriptions)
             .set({ status: 'past_due' })
             .where(eq(subscriptions.stripeSubscriptionId, subscriptionId));
+
+          if (sub?.orgId) {
+            await db.update(organizations)
+              .set({ subscriptionTier: 'free' })
+              .where(eq(organizations.id, sub.orgId));
+          }
         }
         break;
       }

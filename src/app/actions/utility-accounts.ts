@@ -5,7 +5,8 @@ import { db } from '@/lib/db';
 import { utilityAccounts } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { assertBuildingAccess, WRITE_ROLES } from '@/lib/auth/helpers';
+import { getAuthContext, assertBuildingAccess, WRITE_ROLES } from '@/lib/auth/helpers';
+import { actionLimiter } from '@/lib/rate-limit';
 
 export const utilityAccountSchema = z.object({
   buildingId: z.string().min(1),
@@ -33,6 +34,11 @@ export async function getUtilityAccountsForBuilding(buildingId: string) {
 }
 
 export async function createUtilityAccount(data: UtilityAccountFormValues) {
+  const ctx = await getAuthContext();
+  if (!ctx) return { error: 'Unauthorized' };
+  const { success: rlOk } = await actionLimiter.check(20, 'action:account:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Unauthorized' };
 
@@ -57,6 +63,11 @@ export async function createUtilityAccount(data: UtilityAccountFormValues) {
 }
 
 export async function updateUtilityAccount(accountId: string, data: UtilityAccountFormValues) {
+  const ctx = await getAuthContext();
+  if (!ctx) return { error: 'Unauthorized' };
+  const { success: rlOk } = await actionLimiter.check(20, 'action:account:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   const access = await assertBuildingAccess(data.buildingId, WRITE_ROLES);
   if (!access) return { error: 'Unauthorized' };
 
@@ -83,6 +94,11 @@ export async function updateUtilityAccount(accountId: string, data: UtilityAccou
 }
 
 export async function deleteUtilityAccount(accountId: string, buildingId: string) {
+  const ctx = await getAuthContext();
+  if (!ctx) return { error: 'Unauthorized' };
+  const { success: rlOk } = await actionLimiter.check(20, 'action:account:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Unauthorized' };
 

@@ -29,7 +29,10 @@ export async function getOrgTier(orgId: string): Promise<PlanTier> {
     .from(organizations)
     .where(eq(organizations.id, orgId))
     .limit(1);
-  return (org?.tier as PlanTier) ?? 'free';
+  const tier = org?.tier as string | undefined;
+  // Only return tiers that exist in PLAN_CONFIGS; fall back to 'free' for unknown tiers (e.g. 'enterprise')
+  if (tier && tier in PLAN_CONFIGS) return tier as PlanTier;
+  return 'free';
 }
 
 // ---------------------------------------------------------------------------

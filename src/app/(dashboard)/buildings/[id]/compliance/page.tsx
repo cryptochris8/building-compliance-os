@@ -3,6 +3,7 @@ import { buildings, complianceYears, utilityReadings, utilityAccounts, documents
 import { eq, and, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { assertBuildingAccess } from "@/lib/auth/helpers";
+import { getJurisdiction } from "@/lib/jurisdictions";
 import { ComplianceDetailClient } from "@/components/compliance/compliance-detail-client";
 import { ComplianceChecklist } from "@/components/compliance/compliance-checklist";
 import { ActivityLog } from "@/components/compliance/activity-log";
@@ -102,6 +103,14 @@ export default async function BuildingCompliancePage({
   const isLocked = complianceData?.locked || false;
   const checklistState = (complianceData?.checklistState as Record<string, boolean | string>) || null;
 
+  // Derive penalty rate from jurisdiction config
+  let penaltyPerTon = 268; // default NYC LL97
+  try {
+    const jurisdiction = getJurisdiction(building.jurisdictionId);
+    const period = jurisdiction.periods.find(p => selectedYear >= p.startYear && selectedYear <= p.endYear);
+    if (period) penaltyPerTon = period.penaltyPerTon;
+  } catch { /* use default */ }
+
   return (
     <div className="space-y-6">
       <ComplianceDetailClient
@@ -128,6 +137,7 @@ export default async function BuildingCompliancePage({
           emissions: Number(cy.totalEmissionsTco2e || 0),
           limit: Number(cy.emissionsLimitTco2e || 0),
         }))}
+        penaltyPerTon={penaltyPerTon}
       />
 
       {/* Lock Controls */}

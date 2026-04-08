@@ -22,7 +22,7 @@ export async function createBuilding(data: BuildingFormValues) {
   if (!validated.success) return { error: 'Validation failed' };
 
   // Role check — must be owner or admin to create buildings
-  if (!WRITE_ROLES.includes(ctx.role as 'owner' | 'admin' | 'member')) {
+  if (!WRITE_ROLES.includes(ctx.role)) {
     return { error: 'Only owners and admins can add buildings' };
   }
 
@@ -66,6 +66,10 @@ export async function updateBuilding(buildingId: string, data: BuildingFormValue
   const ctx = await getAuthContext();
   if (!ctx) return { error: 'Unauthorized' };
 
+  // Rate limit
+  const { success: rlOk } = await actionLimiter.check(10, 'action:building:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   // Validate
   const validated = buildingFormSchema.safeParse(data);
   if (!validated.success) return { error: 'Validation failed' };
@@ -104,6 +108,12 @@ export async function updateBuilding(buildingId: string, data: BuildingFormValue
 }
 
 export async function deleteBuilding(buildingId: string) {
+  const ctx = await getAuthContext();
+  if (!ctx) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(10, 'action:building:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Unauthorized' };
 

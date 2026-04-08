@@ -300,8 +300,20 @@ describe('calculatePenalty', () => {
 // ============================================================
 
 describe('calculateComplianceStatus', () => {
-  it('returns incomplete for zero emissions', () => {
-    expect(calculateComplianceStatus(0, 100)).toBe('incomplete');
+  it('returns compliant for zero emissions (zero-emission building)', () => {
+    expect(calculateComplianceStatus(0, 100)).toBe('compliant');
+  });
+
+  it('returns incomplete for negative emissions', () => {
+    expect(calculateComplianceStatus(-1, 100)).toBe('incomplete');
+  });
+
+  it('returns over_limit when limit is zero but emissions are positive', () => {
+    expect(calculateComplianceStatus(50, 0)).toBe('over_limit');
+  });
+
+  it('returns compliant when both emissions and limit are zero', () => {
+    expect(calculateComplianceStatus(0, 0)).toBe('compliant');
   });
 
   it('returns compliant when well under limit', () => {
