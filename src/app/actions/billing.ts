@@ -10,16 +10,25 @@ import {
   type PlanTier,
 } from '@/lib/stripe/client';
 import { getAuthContextWithBilling } from '@/lib/auth/helpers';
+import { sanitizeErrorMessage } from '@/lib/utils/error';
 
 export async function createCheckoutSessionAction(priceId: string) {
   const auth = await getAuthContextWithBilling();
   if (!auth) return { error: 'Unauthorized' };
 
+  // Validate priceId against known plans
+  const validPriceIds = Object.values(PLAN_CONFIGS)
+    .flatMap(cfg => [cfg.stripePriceIdMonthly, cfg.stripePriceIdAnnual])
+    .filter(Boolean);
+  if (!validPriceIds.includes(priceId)) {
+    return { error: 'Invalid price selected' };
+  }
+
   try {
     const url = await stripeCheckout(auth.orgId, priceId, auth.email);
     return { url };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to create checkout session' };
+    return { error: sanitizeErrorMessage(err, 'Failed to create checkout session') };
   }
 }
 
@@ -32,7 +41,7 @@ export async function createPortalSessionAction() {
     const url = await stripePortal(auth.stripeCustomerId);
     return { url };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to create portal session' };
+    return { error: sanitizeErrorMessage(err, 'Failed to create portal session') };
   }
 }
 

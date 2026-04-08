@@ -17,13 +17,7 @@ import {
 } from "@/components/ui/table";
 import type { PortfolioSummary } from "@/lib/emissions/types";
 import { Pagination } from "@/components/ui/pagination";
-
-const STATUS_BADGES: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  compliant: { label: "Compliant", variant: "default" },
-  at_risk: { label: "At Risk", variant: "secondary" },
-  over_limit: { label: "Over Limit", variant: "destructive" },
-  incomplete: { label: "Incomplete", variant: "outline" },
-};
+import { STATUS_BADGES } from "@/components/ui/compliance-status-badge";
 
 type SortKey = "name" | "grossSqft" | "status" | "totalEmissions" | "emissionsLimit" | "overUnder" | "penalty" | "completeness";
 

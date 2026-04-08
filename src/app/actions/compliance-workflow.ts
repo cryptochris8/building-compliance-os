@@ -6,7 +6,9 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service';
 import { getAuthUser, assertBuildingAccess, getAuthContext, filterAuthorizedBuildingIds, assertRole, WRITE_ROLES } from '@/lib/auth/helpers';
+import { z } from 'zod';
 import { actionLimiter } from '@/lib/rate-limit';
+import { sanitizeErrorMessage } from '@/lib/utils/error';
 
 async function logActivity(
   buildingId: string,
@@ -47,18 +49,15 @@ export async function updateChecklist(
   if (!cy) return { error: 'Compliance year not found' };
   if (cy.locked) return { error: 'Compliance year is locked' };
 
-  await db.update(complianceYears).set({
+  const updateData: Record<string, unknown> = {
     checklistState,
     updatedAt: new Date(),
-  }).where(eq(complianceYears.id, cy.id));
-
-  // If report_submitted is in checklist, update the dedicated field too
+  };
   if ('report_submitted' in checklistState) {
-    await db.update(complianceYears).set({
-      reportSubmitted: !!checklistState.report_submitted,
-      reportSubmittedAt: checklistState.report_submitted ? new Date() : null,
-    }).where(eq(complianceYears.id, cy.id));
+    updateData.reportSubmitted = !!checklistState.report_submitted;
+    updateData.reportSubmittedAt = checklistState.report_submitted ? new Date() : null;
   }
+  await db.update(complianceYears).set(updateData).where(eq(complianceYears.id, cy.id));
 
   await logActivity(buildingId, cy.id, 'checklist_update', 'Checklist updated for ' + year, ctx.user.id, access.orgId, checklistState);
   revalidatePath('/buildings/' + buildingId + '/compliance');
@@ -101,6 +100,10 @@ export async function unlockComplianceYear(
   year: number,
   reason: string
 ): Promise<{ error?: string }> {
+  const reasonSchema = z.string().min(1, 'Reason is required').max(500, 'Reason is too long');
+  const parsed = reasonSchema.safeParse(reason);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message || 'Invalid reason' };
+
   const ctx = await assertRole('owner', 'admin');
   if (!ctx) return { error: 'Unauthorized: owner or admin role required' };
 
@@ -131,6 +134,10 @@ export async function addComplianceNote(
   year: number,
   content: string
 ): Promise<{ error?: string }> {
+  const contentSchema = z.string().min(1, 'Note content is required').max(2000, 'Note is too long');
+  const parsed = contentSchema.safeParse(content);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message || 'Invalid content' };
+
   const ctx = await getAuthContext();
   if (!ctx) return { error: 'Unauthorized' };
 
@@ -227,7 +234,7 @@ export async function bulkRecalculate(
       await calculateBuildingCompliance(buildingId, year);
       successCount++;
     } catch (err) {
-      console.error('Failed to recalculate building ' + buildingId + ':', err instanceof Error ? err.message : err);
+      console.error('Failed to recalculate building ' + buildingId + ':', sanitizeErrorMessage(err, 'Unknown error'));
     }
   }
 

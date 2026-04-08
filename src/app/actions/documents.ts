@@ -7,6 +7,7 @@ import { eq, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthUser, assertBuildingAccess, WRITE_ROLES } from '@/lib/auth/helpers';
+import { sanitizeErrorMessage } from '@/lib/utils/error';
 
 // ============================================================
 // Zod Validation Schema for Document Upload
@@ -62,8 +63,7 @@ export async function uploadDocument(formData: DocumentFormValues) {
     revalidatePath(`/buildings/${data.buildingId}/documents`);
     return { success: true, document };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to upload document';
-    return { error: message };
+    return { error: sanitizeErrorMessage(error, 'Failed to upload document') };
   }
 }
 
@@ -93,7 +93,6 @@ export async function deleteDocument(id: string, buildingId: string) {
     revalidatePath(`/buildings/${buildingId}/documents`);
     return { success: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to delete document';
-    return { error: message };
+    return { error: sanitizeErrorMessage(error, 'Failed to delete document') };
   }
 }

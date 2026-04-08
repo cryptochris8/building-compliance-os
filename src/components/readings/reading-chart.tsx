@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FUEL_COLORS } from "@/lib/utils/chart-constants";
 
 interface ChartDataPoint {
   month: string;
@@ -24,13 +25,6 @@ interface ReadingChartProps {
   data: ChartDataPoint[];
   title?: string;
 }
-
-const UTILITY_COLORS: Record<string, string> = {
-  electricity: "#3b82f6",
-  natural_gas: "#f97316",
-  district_steam: "#a855f7",
-  fuel_oil: "#ef4444",
-};
 
 export function ReadingChart({ data, title = "Monthly Consumption (kBtu)" }: ReadingChartProps) {
   if (data.length === 0) {
@@ -66,25 +60,25 @@ export function ReadingChart({ data, title = "Monthly Consumption (kBtu)" }: Rea
               dataKey="electricity"
               name="Electricity"
               stackId="a"
-              fill={UTILITY_COLORS.electricity}
+              fill={FUEL_COLORS.electricity}
             />
             <Bar
               dataKey="natural_gas"
               name="Natural Gas"
               stackId="a"
-              fill={UTILITY_COLORS.natural_gas}
+              fill={FUEL_COLORS.natural_gas}
             />
             <Bar
               dataKey="district_steam"
               name="District Steam"
               stackId="a"
-              fill={UTILITY_COLORS.district_steam}
+              fill={FUEL_COLORS.district_steam}
             />
             <Bar
               dataKey="fuel_oil"
               name="Fuel Oil"
               stackId="a"
-              fill={UTILITY_COLORS.fuel_oil}
+              fill={FUEL_COLORS.fuel_oil}
             />
           </BarChart>
         </ResponsiveContainer>

@@ -26,6 +26,7 @@ import { deleteReading } from "@/app/actions/readings";
 import { normalizeToKbtu } from "@/lib/utils/unit-conversion";
 import { Pagination } from "@/components/ui/pagination";
 import { ConfirmDialog, useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { UTILITY_TYPE_LABELS } from "@/lib/utils/utility-labels";
 
 interface ReadingData {
   id: string;
@@ -39,14 +40,6 @@ interface ReadingData {
   source: string;
   confidence: string;
 }
-
-const UTILITY_TYPE_LABELS: Record<string, string> = {
-  electricity: "Electricity",
-  natural_gas: "Natural Gas",
-  district_steam: "District Steam",
-  fuel_oil_2: "Fuel Oil #2",
-  fuel_oil_4: "Fuel Oil #4",
-};
 
 const CONFIDENCE_VARIANTS: Record<string, "default" | "secondary" | "destructive"> = {
   confirmed: "default",

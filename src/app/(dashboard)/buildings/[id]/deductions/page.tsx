@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { buildings, complianceYears, deductions } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { notFound } from "next/navigation";
+import { assertBuildingAccess } from "@/lib/auth/helpers";
 import { DeductionsClient } from "@/components/compliance/deductions-client";
 
 export default async function DeductionsPage({
@@ -12,6 +14,11 @@ export default async function DeductionsPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
+
+  const access = await assertBuildingAccess(id);
+  if (!access) {
+    notFound();
+  }
 
   const [building] = await db.select().from(buildings).where(eq(buildings.id, id)).limit(1);
   if (!building) return <div className="p-6">Building not found.</div>;

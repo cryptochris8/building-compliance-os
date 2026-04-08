@@ -12,27 +12,12 @@ import {
   ReferenceLine,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FUEL_COLORS, FUEL_LABELS } from "@/lib/utils/chart-constants";
 
 const MONTH_NAMES = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
-
-const FUEL_COLORS: Record<string, string> = {
-  electricity: "#3b82f6",
-  natural_gas: "#f97316",
-  district_steam: "#8b5cf6",
-  fuel_oil_2: "#ef4444",
-  fuel_oil_4: "#f43f5e",
-};
-
-const FUEL_LABELS: Record<string, string> = {
-  electricity: "Electricity",
-  natural_gas: "Natural Gas",
-  district_steam: "District Steam",
-  fuel_oil_2: "Fuel Oil #2",
-  fuel_oil_4: "Fuel Oil #4",
-};
 
 interface MonthlyEmissionsChartProps {
   breakdownByMonth: Record<string, number>;

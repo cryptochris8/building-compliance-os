@@ -2,7 +2,7 @@ import { inngest } from './client';
 import { db } from '@/lib/db';
 import { importJobs, utilityAccounts, utilityReadings } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/lib/supabase/service';
 import { parseCsv } from '@/lib/csv/parser';
 
 const VALID_UTILITY_TYPES = ["electricity", "natural_gas", "district_steam", "fuel_oil_2", "fuel_oil_4"];
@@ -25,9 +25,7 @@ export const processCsvImport = inngest.createFunction(
     };
 
     // Download CSV from Supabase Storage
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createServiceClient();
 
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('documents')

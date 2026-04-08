@@ -39,20 +39,21 @@ export default async function BuildingDetailPage({
 
   if (!building) redirect("/dashboard");
 
-  // Fetch utility accounts and readings for gap detection
-  const accounts = await db
-    .select({ id: utilityAccounts.id, utilityType: utilityAccounts.utilityType })
-    .from(utilityAccounts)
-    .where(eq(utilityAccounts.buildingId, id));
-
-  const readings = await db
-    .select({
-      utilityAccountId: utilityReadings.utilityAccountId,
-      periodStart: utilityReadings.periodStart,
-      periodEnd: utilityReadings.periodEnd,
-    })
-    .from(utilityReadings)
-    .where(eq(utilityReadings.buildingId, id));
+  // Fetch utility accounts and readings in parallel for gap detection
+  const [accounts, readings] = await Promise.all([
+    db
+      .select({ id: utilityAccounts.id, utilityType: utilityAccounts.utilityType })
+      .from(utilityAccounts)
+      .where(eq(utilityAccounts.buildingId, id)),
+    db
+      .select({
+        utilityAccountId: utilityReadings.utilityAccountId,
+        periodStart: utilityReadings.periodStart,
+        periodEnd: utilityReadings.periodEnd,
+      })
+      .from(utilityReadings)
+      .where(eq(utilityReadings.buildingId, id)),
+  ]);
 
   const currentYear = new Date().getFullYear();
 

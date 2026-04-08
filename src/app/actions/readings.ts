@@ -8,6 +8,7 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 import { triggerRecalculation } from '@/lib/emissions/recalculation';
 import { getAuthUser, assertBuildingAccess, WRITE_ROLES } from '@/lib/auth/helpers';
 import { actionLimiter } from '@/lib/rate-limit';
+import { sanitizeErrorMessage } from '@/lib/utils/error';
 
 export const readingFormSchema = z.object({
   utilityAccountId: z.string().min(1, 'Utility account is required'),
@@ -91,7 +92,7 @@ export async function createReading(formData: ReadingFormValues) {
     if (access) revalidateTag('portfolio-summary-' + access.orgId + '-' + data.periodYear, 'max');
     return { success: true, reading };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Failed to create reading' };
+    return { error: sanitizeErrorMessage(error, 'Failed to create reading') };
   }
 }
 
@@ -139,7 +140,7 @@ export async function updateReading(id: string, formData: ReadingFormValues) {
     if (access) revalidateTag('portfolio-summary-' + access.orgId + '-' + data.periodYear, 'max');
     return { success: true, reading };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Failed to update reading' };
+    return { error: sanitizeErrorMessage(error, 'Failed to update reading') };
   }
 }
 
@@ -155,11 +156,9 @@ export async function deleteReading(id: string, buildingId: string) {
   const [reading] = await db.select({ periodStart: utilityReadings.periodStart })
     .from(utilityReadings).where(and(eq(utilityReadings.id, id), eq(utilityReadings.buildingId, buildingId))).limit(1);
   if (!reading) return { error: 'Reading not found or access denied' };
-  if (reading) {
-    const year = new Date(reading.periodStart).getFullYear();
-    if (await isYearLocked(buildingId, year)) {
-      return { error: 'Compliance year ' + year + ' is locked. Unlock it before deleting readings.' };
-    }
+  const year = new Date(reading.periodStart).getFullYear();
+  if (await isYearLocked(buildingId, year)) {
+    return { error: 'Compliance year ' + year + ' is locked. Unlock it before deleting readings.' };
   }
 
   try {
@@ -168,11 +167,10 @@ export async function deleteReading(id: string, buildingId: string) {
     revalidatePath('/buildings/' + buildingId + '/readings');
     revalidatePath('/buildings/' + buildingId + '/compliance');
     if (access) {
-      const year = reading ? new Date(reading.periodStart).getFullYear() : new Date().getFullYear();
       revalidateTag('portfolio-summary-' + access.orgId + '-' + year, 'max');
     }
     return { success: true };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Failed to delete reading' };
+    return { error: sanitizeErrorMessage(error, 'Failed to delete reading') };
   }
 }

@@ -106,27 +106,5 @@ export const authLimiter = createLimiter(15 * 60_000, 5, 500);  // 5 req/15min
 export const webhookLimiter = createLimiter(60_000, 30, 100);   // 30 req/min
 export const actionLimiter = createLimiter(60_000, 20, 500);    // 20 req/min for server actions
 
-/**
- * Sanitize error messages before returning to the client.
- * Strips database internals, stack traces, and sensitive information.
- */
-export function sanitizeErrorMessage(error: unknown, fallback: string): string {
-  if (!(error instanceof Error)) return fallback;
-  const msg = error.message;
-  // Block messages that leak DB internals
-  if (
-    msg.includes('duplicate key') ||
-    msg.includes('violates') ||
-    msg.includes('relation "') ||
-    msg.includes('column "') ||
-    msg.includes('ECONNREFUSED') ||
-    msg.includes('password authentication') ||
-    msg.includes('SSL') ||
-    msg.includes('timeout')
-  ) {
-    return fallback;
-  }
-  // Allow short, safe messages through
-  if (msg.length > 200) return fallback;
-  return msg;
-}
+// Re-export sanitizeErrorMessage from its new home for backwards compatibility
+export { sanitizeErrorMessage } from '@/lib/utils/error';

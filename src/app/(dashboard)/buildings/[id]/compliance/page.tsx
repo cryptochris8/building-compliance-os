@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { buildings, complianceYears, utilityReadings, utilityAccounts, documents, complianceActivities } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { notFound } from "next/navigation";
+import { assertBuildingAccess } from "@/lib/auth/helpers";
 import { ComplianceDetailClient } from "@/components/compliance/compliance-detail-client";
 import { ComplianceChecklist } from "@/components/compliance/compliance-checklist";
 import { ActivityLog } from "@/components/compliance/activity-log";
@@ -16,31 +18,49 @@ export default async function BuildingCompliancePage({
   const { id } = await params;
   const sp = await searchParams;
 
+  const access = await assertBuildingAccess(id);
+  if (!access) {
+    notFound();
+  }
+
+  // First: get building (needed for existence check)
   const [building] = await db.select().from(buildings).where(eq(buildings.id, id)).limit(1);
   if (!building) return <div className="p-6">Building not found.</div>;
 
-  const allComplianceYears = await db.select().from(complianceYears)
-    .where(eq(complianceYears.buildingId, id)).orderBy(desc(complianceYears.year));
+  // Then parallel: run independent queries concurrently
+  const [allComplianceYears, accounts, readingsRaw, activities] = await Promise.all([
+    db.select().from(complianceYears)
+      .where(eq(complianceYears.buildingId, id)).orderBy(desc(complianceYears.year)),
+    db.select({ id: utilityAccounts.id, utilityType: utilityAccounts.utilityType })
+      .from(utilityAccounts).where(eq(utilityAccounts.buildingId, id)),
+    db.select({
+      id: utilityReadings.id,
+      utilityAccountId: utilityReadings.utilityAccountId,
+      periodStart: utilityReadings.periodStart,
+      periodEnd: utilityReadings.periodEnd,
+      consumptionValue: utilityReadings.consumptionValue,
+      consumptionUnit: utilityReadings.consumptionUnit,
+      confidence: utilityReadings.confidence,
+    }).from(utilityReadings).where(eq(utilityReadings.buildingId, id)),
+    db.select({
+      id: complianceActivities.id,
+      activityType: complianceActivities.activityType,
+      description: complianceActivities.description,
+      metadata: complianceActivities.metadata,
+      createdAt: complianceActivities.createdAt,
+      actorId: complianceActivities.actorId,
+    }).from(complianceActivities)
+      .where(eq(complianceActivities.buildingId, id))
+      .orderBy(complianceActivities.createdAt),
+  ]);
 
   const currentYear = new Date().getFullYear();
   const selectedYear = sp.year ? parseInt(sp.year) : (allComplianceYears[0]?.year || currentYear);
 
+  // Sequential: depends on selectedYear from above
   const [complianceData] = await db.select().from(complianceYears)
     .where(and(eq(complianceYears.buildingId, id), eq(complianceYears.year, selectedYear)))
     .limit(1);
-
-  const accounts = await db.select({ id: utilityAccounts.id, utilityType: utilityAccounts.utilityType })
-    .from(utilityAccounts).where(eq(utilityAccounts.buildingId, id));
-
-  const readingsRaw = await db.select({
-    id: utilityReadings.id,
-    utilityAccountId: utilityReadings.utilityAccountId,
-    periodStart: utilityReadings.periodStart,
-    periodEnd: utilityReadings.periodEnd,
-    consumptionValue: utilityReadings.consumptionValue,
-    consumptionUnit: utilityReadings.consumptionUnit,
-    confidence: utilityReadings.confidence,
-  }).from(utilityReadings).where(eq(utilityReadings.buildingId, id));
 
   const accountTypeMap: Record<string, string> = {};
   for (const a of accounts) accountTypeMap[a.id] = a.utilityType;
@@ -61,7 +81,7 @@ export default async function BuildingCompliancePage({
   const hasEmissionsCalculated = complianceData ? Number(complianceData.totalEmissionsTco2e || 0) > 0 : false;
   const dataCompleteness = complianceData ? Number(complianceData.dataCompletenessPct || 0) : 0;
 
-  // Check for compliance report and evidence documents
+  // Check for compliance report and evidence documents (depends on complianceData)
   let hasComplianceReport = false;
   let hasEvidenceDocuments = false;
   if (complianceData) {
@@ -70,18 +90,6 @@ export default async function BuildingCompliancePage({
     hasComplianceReport = docs.some((d) => d.documentType === "compliance_report");
     hasEvidenceDocuments = docs.length > 0;
   }
-
-  // Activity log
-  const activities = await db.select({
-    id: complianceActivities.id,
-    activityType: complianceActivities.activityType,
-    description: complianceActivities.description,
-    metadata: complianceActivities.metadata,
-    createdAt: complianceActivities.createdAt,
-    actorId: complianceActivities.actorId,
-  }).from(complianceActivities)
-    .where(eq(complianceActivities.buildingId, id))
-    .orderBy(complianceActivities.createdAt);
 
   // Deductions
   let totalDeductions = 0;

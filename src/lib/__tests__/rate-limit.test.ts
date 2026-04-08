@@ -9,7 +9,7 @@ delete process.env.UPSTASH_REDIS_REST_URL;
 delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
 // Dynamic import after env is set
-const { apiLimiter, authLimiter } = await import('../rate-limit');
+const { apiLimiter, authLimiter, sanitizeErrorMessage } = await import('../rate-limit');
 
 describe('In-memory rate limiter', () => {
   it('allows requests within the limit', async () => {
@@ -55,5 +55,52 @@ describe('In-memory rate limiter', () => {
     const authResult = await authLimiter.check(1, token);
     expect(apiResult.success).toBe(true);
     expect(authResult.success).toBe(true);
+  });
+});
+
+describe('sanitizeErrorMessage', () => {
+  const fallback = 'Something went wrong';
+
+  it('returns fallback for "duplicate key" messages', () => {
+    const error = new Error('duplicate key value violates unique constraint');
+    expect(sanitizeErrorMessage(error, fallback)).toBe(fallback);
+  });
+
+  it('returns fallback for "violates" messages', () => {
+    const error = new Error('violates foreign key constraint');
+    expect(sanitizeErrorMessage(error, fallback)).toBe(fallback);
+  });
+
+  it('returns fallback for "relation" messages', () => {
+    const error = new Error('relation "users" does not exist');
+    expect(sanitizeErrorMessage(error, fallback)).toBe(fallback);
+  });
+
+  it('returns fallback for "ECONNREFUSED" messages', () => {
+    const error = new Error('connect ECONNREFUSED 127.0.0.1:5432');
+    expect(sanitizeErrorMessage(error, fallback)).toBe(fallback);
+  });
+
+  it('returns fallback for "password authentication" messages', () => {
+    const error = new Error('password authentication failed for user "admin"');
+    expect(sanitizeErrorMessage(error, fallback)).toBe(fallback);
+  });
+
+  it('returns the message for short safe errors', () => {
+    const error = new Error('Building not found');
+    expect(sanitizeErrorMessage(error, fallback)).toBe('Building not found');
+  });
+
+  it('returns fallback when message exceeds 200 characters', () => {
+    const longMsg = 'A'.repeat(201);
+    const error = new Error(longMsg);
+    expect(sanitizeErrorMessage(error, fallback)).toBe(fallback);
+  });
+
+  it('returns fallback for non-Error values', () => {
+    expect(sanitizeErrorMessage('just a string', fallback)).toBe(fallback);
+    expect(sanitizeErrorMessage(null, fallback)).toBe(fallback);
+    expect(sanitizeErrorMessage(42, fallback)).toBe(fallback);
+    expect(sanitizeErrorMessage(undefined, fallback)).toBe(fallback);
   });
 });

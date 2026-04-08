@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { Plus, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -23,24 +22,9 @@ import { eq, and, sql } from 'drizzle-orm';
 import { createClient } from '@/lib/supabase/server';
 import type { Building, ComplianceStatus } from '@/types';
 import { BuildingsPagination } from './buildings-pagination';
+import { ComplianceStatusBadge } from '@/components/ui/compliance-status-badge';
 
 const PAGE_SIZE = 20;
-
-function StatusBadge({ status }: { status: ComplianceStatus }) {
-  const variants: Record<ComplianceStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-    compliant: 'default',
-    at_risk: 'secondary',
-    over_limit: 'destructive',
-    incomplete: 'outline',
-  };
-  const labels: Record<ComplianceStatus, string> = {
-    compliant: 'Compliant',
-    at_risk: 'At Risk',
-    over_limit: 'Over Limit',
-    incomplete: 'Incomplete',
-  };
-  return <Badge variant={variants[status]}>{labels[status]}</Badge>;
-}
 
 async function getBuildings(page: number): Promise<{ buildings: (Building & { status: ComplianceStatus })[]; total: number }> {
   const supabase = await createClient();
@@ -160,7 +144,7 @@ export default async function BuildingsPage({
                       <TableCell>{building.occupancyType}</TableCell>
                       <TableCell>{building.jurisdictionId}</TableCell>
                       <TableCell>
-                        <StatusBadge status={building.status} />
+                        <ComplianceStatusBadge status={building.status} />
                       </TableCell>
                     </TableRow>
                   ))}

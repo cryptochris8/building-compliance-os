@@ -6,7 +6,7 @@ import { assertBuildingAccess, WRITE_ROLES } from "@/lib/auth/helpers";
 import { checkAccess } from "@/lib/billing/feature-gate";
 import { apiLimiter } from "@/lib/rate-limit";
 import { inngest } from "@/lib/inngest/client";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export async function POST(
   request: NextRequest,
@@ -64,9 +64,7 @@ export async function POST(
 
     // Upload CSV content to Supabase Storage (avoids Inngest payload limits)
     const storagePath = "imports/" + buildingId + "/" + Date.now() + "-" + file.name;
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createServiceClient();
 
     const { error: uploadError } = await supabase.storage
       .from("documents")

@@ -7,6 +7,7 @@ import { eq, and } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { getAuthUser, assertBuildingAccess, getAuthContext, WRITE_ROLES } from '@/lib/auth/helpers';
 import { actionLimiter } from '@/lib/rate-limit';
+import { sanitizeErrorMessage } from '@/lib/utils/error';
 
 type TxClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -90,7 +91,7 @@ export async function createDeduction(data: DeductionFormValues) {
     if (cy) revalidateTag('portfolio-summary-' + access.orgId + '-' + cy.year, 'max');
     return { success: true, deduction };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Failed to create deduction' };
+    return { error: sanitizeErrorMessage(error, 'Failed to create deduction') };
   }
 }
 
@@ -130,7 +131,7 @@ export async function updateDeduction(id: string, data: DeductionFormValues) {
     if (cy) revalidateTag('portfolio-summary-' + access.orgId + '-' + cy.year, 'max');
     return { success: true, deduction };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Failed to update deduction' };
+    return { error: sanitizeErrorMessage(error, 'Failed to update deduction') };
   }
 }
 
@@ -143,8 +144,9 @@ export async function deleteDeduction(id: string, buildingId: string, compliance
   if (!access) return { error: 'Building not found or access denied' };
 
   const [cy] = await db.select().from(complianceYears)
-    .where(eq(complianceYears.id, complianceYearId)).limit(1);
-  if (cy?.locked) return { error: 'Compliance year is locked' };
+    .where(and(eq(complianceYears.id, complianceYearId), eq(complianceYears.buildingId, buildingId))).limit(1);
+  if (!cy) return { error: 'Compliance year not found for this building' };
+  if (cy.locked) return { error: 'Compliance year is locked' };
 
   try {
     await db.transaction(async (tx) => {
@@ -157,7 +159,7 @@ export async function deleteDeduction(id: string, buildingId: string, compliance
     if (cy) revalidateTag('portfolio-summary-' + access.orgId + '-' + cy.year, 'max');
     return { success: true };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Failed to delete deduction' };
+    return { error: sanitizeErrorMessage(error, 'Failed to delete deduction') };
   }
 }
 
