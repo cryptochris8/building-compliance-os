@@ -227,14 +227,19 @@ export async function bulkRecalculate(
     ));
   const lockedIds = new Set(lockedCy.map(cy => cy.buildingId));
 
+  // Batch recalculation with concurrency limit of 5
+  const CONCURRENCY = 5;
+  const unlocked = auth.authorizedIds.filter(id => !lockedIds.has(id));
   let successCount = 0;
-  for (const buildingId of auth.authorizedIds) {
-    if (lockedIds.has(buildingId)) continue;
-    try {
-      await calculateBuildingCompliance(buildingId, year);
-      successCount++;
-    } catch (err) {
-      console.error('Failed to recalculate building ' + buildingId + ':', sanitizeErrorMessage(err, 'Unknown error'));
+
+  for (let i = 0; i < unlocked.length; i += CONCURRENCY) {
+    const batch = unlocked.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(buildingId => calculateBuildingCompliance(buildingId, year))
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') successCount++;
+      else console.error('Failed to recalculate:', r.reason instanceof Error ? r.reason.message : 'Unknown error');
     }
   }
 

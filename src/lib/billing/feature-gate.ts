@@ -1,3 +1,4 @@
+import 'server-only';
 import { db } from '@/lib/db';
 import { organizations, buildings, subscriptions } from '@/lib/db/schema';
 import { eq, count } from 'drizzle-orm';

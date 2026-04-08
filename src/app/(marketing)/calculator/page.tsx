@@ -10,25 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Calculator, CheckCircle2, ArrowRight, Building2 } from "lucide-react";
 import { NYC_OCCUPANCY_TYPES } from "@/types";
+import { nycLL97 } from "@/lib/jurisdictions/nyc-ll97";
 
-const COEFFICIENTS = {
-  electricity_kwh: 0.000288962,
-  natural_gas_kbtu: 0.00005311,
-  district_steam_kbtu: 0.00004493,
-  fuel_oil_2_kbtu: 0.00007421,
-  fuel_oil_4_kbtu: 0.00007529,
-};
-
-const LIMITS: Record<string, number> = {
-  "A - Assembly": 0.01074, "B - Business": 0.00846, "E - Educational": 0.00758,
-  "F - Factory": 0.00574, "H - High Hazard": 0.00574, "I-1 - Institutional": 0.01138,
-  "I-2 - Institutional (Hospital)": 0.02381, "I-3 - Institutional (Detention)": 0.02381,
-  "I-4 - Institutional (Day Care)": 0.01138, "M - Mercantile": 0.01181,
-  "R-1 - Residential (Hotel)": 0.00987, "R-2 - Residential (Multi-family)": 0.00675,
-  "S - Storage": 0.00426, "U - Utility": 0.00426,
-};
-
-const PENALTY_PER_TON = 268;
+// Derive from the canonical jurisdiction config (2024-2029 period)
+const PERIOD = nycLL97.periods[0];
+const COEFFICIENTS = PERIOD.coefficients;
+const LIMITS = PERIOD.limits;
+const PENALTY_PER_TON = PERIOD.penaltyPerTon;
 
 interface CalcResult { emissions: number; limit: number; surplus: number; penalty: number; status: "compliant" | "at_risk" | "over_limit"; }
 
@@ -57,6 +45,7 @@ export default function CalculatorPage() {
 
   function handleCalculate() {
     if (!sqft || !occupancyType) return;
+    // Convert therms→kBtu (*100), Mlb steam→kBtu (*1194), gallons oil→kBtu (*138.5)
     setResult(calculate(Number(sqft), occupancyType, Number(electricity || 0), Number(gas || 0) * 100, Number(steam || 0) * 1194, Number(oil || 0) * 138.5));
   }
 
@@ -105,7 +94,7 @@ export default function CalculatorPage() {
                     <div className="rounded-lg p-4 bg-muted text-center">
                       <p className="text-sm text-muted-foreground mb-1">Estimated Annual Penalty</p>
                       <p className={`text-3xl font-bold ${result.penalty > 0 ? "text-red-600" : "text-green-600"}`}>${result.penalty.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground mt-1">at $268 per tCO2e over limit</p>
+                      <p className="text-xs text-muted-foreground mt-1">at ${PENALTY_PER_TON} per tCO2e over limit</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {result.status === "over_limit" && (<Badge variant="destructive" className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Over Limit</Badge>)}

@@ -1,3 +1,4 @@
+import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db';
 import { users, buildings } from '@/lib/db/schema';

@@ -30,27 +30,26 @@ export async function assembleReportData(
     .limit(1);
   if (!cy) return { data: null, error: 'No compliance data for year ' + year };
 
-  // Fetch accounts + readings
-  const accounts = await db.select().from(utilityAccounts)
-    .where(eq(utilityAccounts.buildingId, buildingId));
-  const accountTypeMap = new Map(accounts.map((a) => [a.id, a.utilityType]));
-
+  // Fetch accounts, readings, deductions, and documents in parallel
   const yearStart = year + '-01-01';
   const yearEnd = year + '-12-31';
-  const readings = await db.select().from(utilityReadings)
-    .where(and(
-      eq(utilityReadings.buildingId, buildingId),
-      sql`${utilityReadings.periodStart} >= ${yearStart}`,
-      sql`${utilityReadings.periodEnd} <= ${yearEnd}`
-    ));
 
-  // Fetch deductions
-  const deds = await db.select().from(deductions)
-    .where(eq(deductions.complianceYearId, cy.id));
+  const [accounts, readings, deds, docs] = await Promise.all([
+    db.select().from(utilityAccounts)
+      .where(eq(utilityAccounts.buildingId, buildingId)),
+    db.select().from(utilityReadings)
+      .where(and(
+        eq(utilityReadings.buildingId, buildingId),
+        sql`${utilityReadings.periodStart} >= ${yearStart}`,
+        sql`${utilityReadings.periodEnd} <= ${yearEnd}`
+      )),
+    db.select().from(deductions)
+      .where(eq(deductions.complianceYearId, cy.id)),
+    db.select().from(documents)
+      .where(eq(documents.buildingId, buildingId)),
+  ]);
 
-  // Fetch documents
-  const docs = await db.select().from(documents)
-    .where(eq(documents.buildingId, buildingId));
+  const accountTypeMap = new Map(accounts.map((a) => [a.id, a.utilityType]));
 
   // Build emissions using actual coefficients
   // Filter out readings with unknown account types to avoid incorrect emissions

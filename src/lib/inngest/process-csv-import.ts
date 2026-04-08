@@ -189,7 +189,7 @@ export const processCsvImport = inngest.createFunction(
               source: "csv_upload" as const,
               confidence: "confirmed" as const,
             }))
-          );
+          ).onConflictDoNothing();
           rowsImported += batch.length;
         } catch (err) {
           // If batch fails, try individual inserts for this batch

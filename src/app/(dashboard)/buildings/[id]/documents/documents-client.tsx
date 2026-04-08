@@ -36,13 +36,6 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const DEMO_DOCUMENTS: DocumentRecord[] = [
-  { id: "1", fileName: "con_edison_jan_2024.pdf", fileType: "application/pdf", fileSizeBytes: 245000, documentType: "utility_bill", createdAt: "2024-02-15T10:30:00Z", complianceYear: 2024 },
-  { id: "2", fileName: "national_grid_jan_2024.pdf", fileType: "application/pdf", fileSizeBytes: 198000, documentType: "utility_bill", createdAt: "2024-02-15T10:31:00Z", complianceYear: 2024 },
-  { id: "3", fileName: "ll97_compliance_2023.pdf", fileType: "application/pdf", fileSizeBytes: 1200000, documentType: "compliance_report", createdAt: "2024-05-01T14:00:00Z", complianceYear: 2023 },
-  { id: "4", fileName: "solar_panel_photo.jpg", fileType: "image/jpeg", fileSizeBytes: 3500000, documentType: "deduction_form", createdAt: "2024-06-15T09:00:00Z", complianceYear: 2024 },
-];
-
 function formatFileSize(bytes: number | null): string {
   if (bytes === null) return "-";
   if (bytes < 1024) return bytes + " B";
@@ -60,14 +53,14 @@ function isImageFile(fileType: string): boolean {
   return fileType.startsWith("image/");
 }
 
-export default function DocumentsClient() {
+export default function DocumentsClient({ documents: initialDocuments }: { documents: DocumentRecord[] }) {
   const params = useParams();
   const buildingId = params.id as string;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [yearFilter, setYearFilter] = useState<string>("all");
   const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null);
-  const documents = DEMO_DOCUMENTS;
+  const documents = initialDocuments;
 
   const filtered = useMemo(() => {
     let docs = documents;
