@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 function SidebarContent({ userEmail }: { userEmail: string | null }) {
   return (
@@ -32,6 +33,7 @@ function SidebarContent({ userEmail }: { userEmail: string | null }) {
             </span>
           </div>
         )}
+        <ThemeToggle />
         <LogoutButton />
         <p className="text-xs text-muted-foreground">
           Building Compliance OS v0.6.0

@@ -245,14 +245,14 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{b.address}</TableCell>
                         <TableCell>{b.grossSqft.toLocaleString()}</TableCell>
-                        <TableCell><Badge variant={badge.variant}>{badge.label}</Badge></TableCell>
+                        <TableCell><Badge variant="outline" className={badge.className}>{badge.label}</Badge></TableCell>
                         <TableCell className="text-right">{b.totalEmissions.toFixed(2)}</TableCell>
                         <TableCell className="text-right">{b.emissionsLimit.toFixed(2)}</TableCell>
-                        <TableCell className={"text-right " + (b.overUnder > 0 ? "text-red-600 dark:text-red-400 font-medium" : "text-green-600 dark:text-green-400")}>
+                        <TableCell className={"text-right " + (b.overUnder > 0 ? "text-destructive font-medium" : "text-[var(--success)]")}>
                           {b.overUnder > 0 ? "+" : ""}{b.overUnder.toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {b.penalty > 0 ? <span className="text-red-600 dark:text-red-400">{"$" + b.penalty.toLocaleString()}</span> : "$0"}
+                          {b.penalty > 0 ? <span className="text-destructive">{"$" + b.penalty.toLocaleString()}</span> : "$0"}
                         </TableCell>
                         <TableCell className="text-right">{b.completeness}%</TableCell>
                       </TableRow>

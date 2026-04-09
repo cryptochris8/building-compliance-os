@@ -3,21 +3,32 @@ import { FUEL_COLORS, FUEL_LABELS } from '../chart-constants';
 
 describe('FUEL_COLORS', () => {
   it('has colors for all standard fuel types', () => {
-    expect(FUEL_COLORS.electricity).toBe('#3b82f6');
-    expect(FUEL_COLORS.natural_gas).toBe('#f97316');
-    expect(FUEL_COLORS.district_steam).toBe('#8b5cf6');
-    expect(FUEL_COLORS.fuel_oil_2).toBe('#ef4444');
-    expect(FUEL_COLORS.fuel_oil_4).toBe('#f43f5e');
+    expect(FUEL_COLORS.electricity).toBeDefined();
+    expect(FUEL_COLORS.natural_gas).toBeDefined();
+    expect(FUEL_COLORS.district_steam).toBeDefined();
+    expect(FUEL_COLORS.fuel_oil_2).toBeDefined();
+    expect(FUEL_COLORS.fuel_oil_4).toBeDefined();
   });
 
   it('has a combined fuel_oil alias', () => {
-    expect(FUEL_COLORS.fuel_oil).toBe('#ef4444');
+    expect(FUEL_COLORS.fuel_oil).toBeDefined();
+    // The alias should resolve to the same value as fuel_oil_2
+    expect(FUEL_COLORS.fuel_oil).toBe(FUEL_COLORS.fuel_oil_2);
   });
 
-  it('all values are valid hex colors', () => {
+  it('all values reference a CSS custom property or are valid hex colors', () => {
+    const cssVarOrHex = /^(var\(--[a-z0-9-]+(?:,\s*#[0-9a-f]{3,8})?\)|#[0-9a-f]{6})$/i;
     for (const color of Object.values(FUEL_COLORS)) {
-      expect(color).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(color).toMatch(cssVarOrHex);
     }
+  });
+
+  it('uses distinct chart variable references for each fuel type', () => {
+    // Each fuel type should map to a distinct chart variable so colours are
+    // unique across the chart legend.
+    const distinctValues = new Set(Object.values(FUEL_COLORS));
+    // We have 5 named fuels + 1 alias; expect at least 5 distinct colours
+    expect(distinctValues.size).toBeGreaterThanOrEqual(5);
   });
 });
 

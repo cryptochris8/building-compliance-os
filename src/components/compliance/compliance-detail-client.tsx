@@ -26,10 +26,30 @@ import { assessConfidenceFromData } from "@/lib/emissions/confidence-utils";
 type IconComponent = React.ComponentType<{ className?: string }>;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: IconComponent }> = {
-  compliant: { label: "COMPLIANT", color: "text-green-700 dark:text-green-400", bgColor: "bg-green-100 dark:bg-green-950/30 border-green-300", icon: CheckCircle2 },
-  at_risk: { label: "AT RISK", color: "text-yellow-700 dark:text-yellow-400", bgColor: "bg-yellow-100 dark:bg-yellow-950/30 border-yellow-300", icon: AlertTriangle },
-  over_limit: { label: "OVER LIMIT", color: "text-red-700 dark:text-red-400", bgColor: "bg-red-100 dark:bg-red-950/30 border-red-300", icon: XCircle },
-  incomplete: { label: "INCOMPLETE", color: "text-gray-700 dark:text-gray-400", bgColor: "bg-gray-100 dark:bg-gray-950/30 border-gray-300", icon: HelpCircle },
+  compliant: {
+    label: "COMPLIANT",
+    color: "text-[var(--success)]",
+    bgColor: "bg-[var(--success-bg)] border-[var(--success-border)]",
+    icon: CheckCircle2,
+  },
+  at_risk: {
+    label: "AT RISK",
+    color: "text-[var(--warning)]",
+    bgColor: "bg-[var(--warning-bg)] border-[var(--warning-border)]",
+    icon: AlertTriangle,
+  },
+  over_limit: {
+    label: "OVER LIMIT",
+    color: "text-destructive",
+    bgColor: "bg-destructive/10 border-destructive/30",
+    icon: XCircle,
+  },
+  incomplete: {
+    label: "INCOMPLETE",
+    color: "text-muted-foreground",
+    bgColor: "bg-muted border-muted-foreground/25",
+    icon: HelpCircle,
+  },
 };
 
 interface ComplianceDetailClientProps {
@@ -153,11 +173,11 @@ export function ComplianceDetailClient({
       </div>
 
       {confidence.level !== "high" && (
-        <Card className={confidence.level === "low" ? "border-red-300 bg-red-50 dark:bg-red-950/20" : "border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20"}>
+        <Card className={confidence.level === "low" ? "border-[var(--destructive)]/30 bg-destructive/10" : "border-[var(--warning-border)] bg-[var(--warning-bg)]"}>
           <CardContent className="flex items-start gap-3 pt-6">
-            <AlertTriangle className={"h-5 w-5 mt-0.5 " + (confidence.level === "low" ? "text-red-600 dark:text-red-400" : "text-yellow-600 dark:text-yellow-400")} />
+            <AlertTriangle className={"h-5 w-5 mt-0.5 " + (confidence.level === "low" ? "text-destructive" : "text-[var(--warning)]")} />
             <div>
-              <p className={"text-sm font-medium " + (confidence.level === "low" ? "text-red-800 dark:text-red-200" : "text-yellow-800 dark:text-yellow-200")}>
+              <p className={"text-sm font-medium " + (confidence.level === "low" ? "text-destructive" : "text-[var(--warning)]")}>
                 Data Confidence: {confidence.level.toUpperCase()}
               </p>
               <ul className="mt-1 text-sm text-muted-foreground list-disc list-inside">
