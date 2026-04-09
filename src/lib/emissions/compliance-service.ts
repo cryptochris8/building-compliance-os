@@ -1,3 +1,4 @@
+import 'server-only';
 import { db } from '@/lib/db';
 import { buildings, utilityReadings, utilityAccounts, complianceYears, deductions } from '@/lib/db/schema';
 import { eq, and, sql } from 'drizzle-orm';

@@ -38,6 +38,9 @@ export async function updateChecklist(
   const ctx = await getAuthContext();
   if (!ctx) return { error: 'Unauthorized' };
 
+  const { success: rlOk } = await actionLimiter.check(20, 'action:checklist:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
@@ -71,6 +74,9 @@ export async function lockComplianceYear(
 ): Promise<{ error?: string }> {
   const ctx = await assertRole('owner', 'admin');
   if (!ctx) return { error: 'Unauthorized: owner or admin role required' };
+
+  const { success: rlOk } = await actionLimiter.check(10, 'action:lock:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
@@ -107,6 +113,9 @@ export async function unlockComplianceYear(
   const ctx = await assertRole('owner', 'admin');
   if (!ctx) return { error: 'Unauthorized: owner or admin role required' };
 
+  const { success: rlOk } = await actionLimiter.check(10, 'action:lock:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
   if (!access) return { error: 'Building not found or access denied' };
@@ -140,6 +149,9 @@ export async function addComplianceNote(
 
   const ctx = await getAuthContext();
   if (!ctx) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(20, 'action:note:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(buildingId, WRITE_ROLES);

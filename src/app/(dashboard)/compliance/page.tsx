@@ -1,18 +1,9 @@
 import { db } from "@/lib/db";
-import { buildings, complianceYears, users } from "@/lib/db/schema";
+import { buildings, complianceYears } from "@/lib/db/schema";
 import { eq, desc, inArray } from "drizzle-orm";
-import { createClient } from "@/lib/supabase/server";
+import { getUserOrgId } from "@/lib/auth/helpers";
 import { getJurisdiction } from "@/lib/jurisdictions";
 import { ComplianceCalendarClient } from "@/components/compliance/compliance-calendar-client";
-
-async function getUserOrgId() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const [dbUser] = await db.select({ organizationId: users.organizationId })
-    .from(users).where(eq(users.id, user.id)).limit(1);
-  return dbUser?.organizationId || null;
-}
 
 export interface ComplianceDeadlineRow {
   buildingId: string;
