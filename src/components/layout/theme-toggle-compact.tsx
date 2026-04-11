@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -14,14 +14,13 @@ const themeIcons: Record<Theme, React.ReactNode> = {
   dark: <Moon className="h-4 w-4" />,
 };
 
+const subscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 export function ThemeToggleCompact() {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   function cycleTheme() {
     const current = (theme ?? "system") as Theme;

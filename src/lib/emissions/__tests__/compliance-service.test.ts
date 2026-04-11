@@ -1,22 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-// Mock server-only before any imports
-vi.mock('server-only', () => ({}));
-
-// Mock next/cache
-vi.mock('next/cache', () => ({
-  unstable_cache: (fn: Function) => fn,
-}));
-
-// We'll test the pure calculation logic that compliance-service delegates to,
-// since the service itself requires a real DB connection.
-// These tests verify the critical business logic paths.
+import { describe, it, expect } from 'vitest';
 
 import {
   calculateBuildingEmissions,
   calculateEmissionsLimit,
   calculatePenalty,
-  calculateComplianceStatus,
   detectMissingMonths,
   calculateCompliance,
   type UtilityReadingInput,
