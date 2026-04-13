@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Building2, ShieldCheck, AlertTriangle, XCircle, DollarSign, Leaf,
-  ArrowUpDown, ArrowUp, ArrowDown,
+  ArrowUpDown, ArrowUp, ArrowDown, Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,8 @@ import {
 import type { PortfolioSummary } from "@/lib/emissions/types";
 import { Pagination } from "@/components/ui/pagination";
 import { STATUS_BADGES } from "@/components/ui/compliance-status-badge";
+import { seedSampleData } from "@/app/actions/sample-data";
+import { toast } from "sonner";
 
 type SortKey = "name" | "grossSqft" | "status" | "totalEmissions" | "emissionsLimit" | "overUnder" | "penalty" | "completeness";
 
@@ -26,6 +29,60 @@ function SortIcon({ colKey, sortKey, sortDir }: { colKey: SortKey; sortKey: Sort
   return sortDir === "asc"
     ? <ArrowUp className="ml-1 h-3 w-3 inline" />
     : <ArrowDown className="ml-1 h-3 w-3 inline" />;
+}
+
+function EmptyDashboard({ isFiltered }: { isFiltered: boolean }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  async function handleSeedSample() {
+    startTransition(async () => {
+      const result = await seedSampleData();
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Sample building created with 12 months of data!");
+        router.refresh();
+      }
+    });
+  }
+
+  if (isFiltered) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <Building2 className="h-12 w-12 text-muted-foreground/50" />
+        <h3 className="mt-4 text-lg font-semibold">No buildings match the selected filter.</h3>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="rounded-full bg-primary/10 p-4 mb-4">
+        <Building2 className="h-10 w-10 text-primary" />
+      </div>
+      <h3 className="text-xl font-semibold">Welcome to Building Compliance OS</h3>
+      <p className="mt-2 text-sm text-muted-foreground max-w-md">
+        Add your first building to start tracking LL97 compliance, or load sample data to explore the dashboard.
+      </p>
+      <div className="mt-6 flex flex-col sm:flex-row gap-3">
+        <Button asChild>
+          <Link href="/buildings/new">Add Your Building</Link>
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleSeedSample}
+          disabled={isPending}
+        >
+          <Sparkles className="mr-2 h-4 w-4" />
+          {isPending ? "Creating..." : "Try with Sample Data"}
+        </Button>
+      </div>
+      <p className="mt-4 text-xs text-muted-foreground">
+        Sample data creates a realistic NYC office building with 12 months of utility readings. You can delete it anytime.
+      </p>
+    </div>
+  );
 }
 
 interface PortfolioDashboardClientProps {
@@ -178,15 +235,7 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
         </CardHeader>
         <CardContent>
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Building2 className="h-12 w-12 text-muted-foreground/50" />
-              <h3 className="mt-4 text-lg font-semibold">No buildings found</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {totalBuildings === 0
-                  ? "Add buildings and utility data to see compliance status."
-                  : "No buildings match the selected filter."}
-              </p>
-            </div>
+            <EmptyDashboard isFiltered={totalBuildings > 0} />
           ) : (
             <div className="overflow-x-auto">
               <Table>

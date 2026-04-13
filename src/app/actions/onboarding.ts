@@ -1,8 +1,8 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { buildings } from '@/lib/db/schema';
-import { eq, count } from 'drizzle-orm';
+import { buildings, utilityReadings } from '@/lib/db/schema';
+import { eq, count, inArray } from 'drizzle-orm';
 import { getUserOrgId } from '@/lib/auth/helpers';
 
 interface OnboardingStatus {
@@ -18,21 +18,30 @@ export async function getOnboardingStatus(): Promise<OnboardingStatus> {
     return { completed: false, currentStep: 1, hasBuilding: false, hasReadings: false };
   }
 
-  const [buildingCount] = await db
-    .select({ value: count() })
+  const orgBuildings = await db
+    .select({ id: buildings.id })
     .from(buildings)
     .where(eq(buildings.organizationId, orgId));
 
-  const hasBuilding = (buildingCount?.value ?? 0) > 0;
+  const hasBuilding = orgBuildings.length > 0;
 
-  // For simplicity, we derive the step from what data exists
+  // Check if any buildings have readings
+  let hasReadings = false;
+  if (hasBuilding) {
+    const buildingIds = orgBuildings.map(b => b.id);
+    const [readingCount] = await db
+      .select({ value: count() })
+      .from(utilityReadings)
+      .where(inArray(utilityReadings.buildingId, buildingIds));
+    hasReadings = (readingCount?.value ?? 0) > 0;
+  }
+
   let currentStep = 1;
   if (hasBuilding) currentStep = 3;
-  // Readings check would need a join - keep it simple for onboarding
-  const hasReadings = false;
+  if (hasReadings) currentStep = 4;
 
   return {
-    completed: hasBuilding,
+    completed: hasBuilding && hasReadings,
     currentStep,
     hasBuilding,
     hasReadings,
