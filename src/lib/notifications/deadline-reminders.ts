@@ -7,6 +7,17 @@ import { getJurisdiction } from '@/lib/jurisdictions';
 const resend = new Resend(process.env.RESEND_API_KEY);
 const fromAddress = process.env.EMAIL_FROM || 'Building Compliance OS <onboarding@resend.dev>';
 
+/**
+ * Milestone days (relative to the deadline) on which a reminder email fires.
+ * Keeps a daily cron from spamming — at most 7 emails per building/year cycle.
+ * Negative values are days overdue.
+ */
+const REMINDER_MILESTONE_DAYS = new Set<number>([30, 14, 7, 3, 1, 0, -7]);
+
+export function shouldSendReminderToday(daysUntilDeadline: number): boolean {
+  return REMINDER_MILESTONE_DAYS.has(daysUntilDeadline);
+}
+
 export interface DeadlineReminder {
   buildingId: string;
   buildingName: string;

@@ -19,7 +19,7 @@ vi.mock('@/lib/jurisdictions', () => ({
   getJurisdiction: vi.fn(),
 }));
 
-import { generateReminderEmail } from '../deadline-reminders';
+import { generateReminderEmail, shouldSendReminderToday } from '../deadline-reminders';
 import type { DeadlineReminder } from '../deadline-reminders';
 
 function makeReminder(overrides: Partial<DeadlineReminder> = {}): DeadlineReminder {
@@ -99,4 +99,20 @@ describe('generateReminderEmail', () => {
     expect(result.subject).toContain('[OVERDUE]');
     expect(result.body).toContain('was due 0 days ago');
   });
+});
+
+describe('shouldSendReminderToday', () => {
+  it.each([30, 14, 7, 3, 1, 0, -7])(
+    'returns true on milestone day %i',
+    (days) => {
+      expect(shouldSendReminderToday(days)).toBe(true);
+    },
+  );
+
+  it.each([29, 20, 15, 10, 5, 4, 2, -1, -3, -6, -8, -30])(
+    'returns false on non-milestone day %i',
+    (days) => {
+      expect(shouldSendReminderToday(days)).toBe(false);
+    },
+  );
 });
