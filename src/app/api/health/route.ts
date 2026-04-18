@@ -20,7 +20,7 @@ export async function GET() {
     const start = Date.now();
     await db.execute(sql`SELECT 1`);
     status.checks.database = { status: 'pass', latencyMs: Date.now() - start };
-  } catch (error) {
+  } catch {
     status.status = 'degraded';
     status.checks.database = {
       status: 'fail',

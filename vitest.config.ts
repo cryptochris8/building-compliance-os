@@ -5,11 +5,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    exclude: ['e2e/**', 'node_modules/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'text-summary', 'lcov'],
-      include: ['src/lib/**/*.ts'],
-      exclude: ['src/lib/db/**', 'src/lib/**/__tests__/**'],
+      include: ['src/lib/**/*.ts', 'src/components/**/*.tsx'],
+      exclude: ['src/lib/db/**', 'src/lib/**/__tests__/**', 'src/test/**'],
       thresholds: {
         statements: 40,
         branches: 30,

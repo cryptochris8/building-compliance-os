@@ -5,7 +5,7 @@ import {
   pmConnections,
   pmPropertyMappings,
 } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { PMClient } from "./client";
 import { PM_METER_TYPE_MAP, PM_UNIT_MAP } from "./types";
 import { decrypt } from "@/lib/auth/encryption";

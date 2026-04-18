@@ -11,10 +11,14 @@ import {
 } from '@/lib/stripe/client';
 import { getAuthContextWithBilling } from '@/lib/auth/helpers';
 import { sanitizeErrorMessage } from '@/lib/utils/error';
+import { actionLimiter } from '@/lib/rate-limit';
 
 export async function createCheckoutSessionAction(priceId: string) {
   const auth = await getAuthContextWithBilling();
   if (!auth) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(5, 'action:billing:' + auth.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Validate priceId against known plans
   const validPriceIds = Object.values(PLAN_CONFIGS)
@@ -35,6 +39,10 @@ export async function createCheckoutSessionAction(priceId: string) {
 export async function createPortalSessionAction() {
   const auth = await getAuthContextWithBilling();
   if (!auth) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(5, 'action:billing:' + auth.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   if (!auth.stripeCustomerId) return { error: 'No active billing account' };
 
   try {

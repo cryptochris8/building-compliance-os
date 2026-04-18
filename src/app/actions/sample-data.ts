@@ -6,6 +6,7 @@ import { eq, count } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getAuthContext } from '@/lib/auth/helpers';
 import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service';
+import { actionLimiter } from '@/lib/rate-limit';
 
 /**
  * Seed a realistic sample building with 12 months of utility data
@@ -14,6 +15,9 @@ import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service'
 export async function seedSampleData(): Promise<{ error?: string; buildingId?: string }> {
   const ctx = await getAuthContext();
   if (!ctx) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(3, 'action:seed:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Check if org already has buildings — don't double-seed
   const [existing] = await db.select({ value: count() })

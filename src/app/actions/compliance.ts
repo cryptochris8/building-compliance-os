@@ -7,12 +7,19 @@ import {
   type ComplianceResultWithBreakdown,
   type PortfolioSummary,
 } from '@/lib/emissions/compliance-service';
-import { assertBuildingAccess, getUserOrgId } from '@/lib/auth/helpers';
+import { assertBuildingAccess, getAuthUser, getUserOrgId } from '@/lib/auth/helpers';
+import { actionLimiter } from '@/lib/rate-limit';
 
 export async function calculateCompliance(
   buildingId: string,
   year: number
 ): Promise<{ data?: ComplianceResultWithBreakdown; error?: string }> {
+  const user = await getAuthUser();
+  if (!user) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(10, 'action:compliance:' + user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   // Verify building ownership
   const access = await assertBuildingAccess(buildingId);
   if (!access) return { error: 'Building not found or access denied' };
@@ -29,6 +36,12 @@ export async function calculateCompliance(
 export async function recalculatePortfolio(
   year: number
 ): Promise<{ data?: ComplianceResultWithBreakdown[]; error?: string }> {
+  const user = await getAuthUser();
+  if (!user) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(5, 'action:portfolio-recalc:' + user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   const orgId = await getUserOrgId();
   if (!orgId) return { error: 'Unauthorized or no organization' };
 

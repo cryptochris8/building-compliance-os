@@ -8,7 +8,7 @@ import { calculateBuildingCompliance } from '@/lib/emissions/compliance-service'
 import { getAuthUser, assertBuildingAccess, getAuthContext, filterAuthorizedBuildingIds, assertRole, WRITE_ROLES } from '@/lib/auth/helpers';
 import { z } from 'zod';
 import { actionLimiter } from '@/lib/rate-limit';
-import { sanitizeErrorMessage } from '@/lib/utils/error';
+
 
 async function logActivity(
   buildingId: string,
@@ -173,6 +173,10 @@ export async function bulkMarkSubmitted(
   // Verify auth + role (owner/admin required for write operations)
   const ctx = await getAuthContext();
   if (!ctx) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(5, 'action:bulk-submit:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   if (!WRITE_ROLES.includes(ctx.role)) return { error: 'Insufficient permissions: owner or admin role required' };
 
   // Verify all building IDs belong to the user's org

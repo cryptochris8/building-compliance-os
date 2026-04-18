@@ -10,11 +10,15 @@ import { getUserOrgId, assertBuildingAccess, assertRole } from "@/lib/auth/helpe
 import { encrypt } from "@/lib/auth/encryption";
 import { checkAccess } from "@/lib/billing/feature-gate";
 import { sanitizeErrorMessage } from "@/lib/utils/error";
+import { actionLimiter } from "@/lib/rate-limit";
 
 export async function connectPM(formData: FormData) {
   const ctx = await assertRole('owner', 'admin');
   if (!ctx) return { error: "Unauthorized: owner or admin role required" };
   const orgId = ctx.orgId;
+
+  const { success: rlOk } = await actionLimiter.check(5, 'action:pm:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   const username = formData.get("username") as string;
   const password = formData.get("password") as string;
@@ -55,6 +59,9 @@ export async function disconnectPM() {
   if (!ctx) return { error: "Unauthorized: owner or admin role required" };
   const orgId = ctx.orgId;
 
+  const { success: rlOk } = await actionLimiter.check(5, 'action:pm:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   await db.delete(pmConnections).where(eq(pmConnections.orgId, orgId));
   revalidatePath("/settings/portfolio-manager");
   return { success: true };
@@ -64,6 +71,9 @@ export async function syncPMProperties() {
   const ctx = await assertRole('owner', 'admin');
   if (!ctx) return { error: "Unauthorized: owner or admin role required" };
   const orgId = ctx.orgId;
+
+  const { success: rlOk } = await actionLimiter.check(5, 'action:pm:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Enforce feature gate: PM sync requires pro or portfolio tier
   const hasAccess = await checkAccess(orgId, 'pmSync');
@@ -81,6 +91,9 @@ export async function syncPMProperties() {
 export async function linkProperty(pmPropertyId: string, buildingId: string) {
   const orgId = await getUserOrgId();
   if (!orgId) return { error: "Unauthorized" };
+
+  const { success: rlOk } = await actionLimiter.check(10, 'action:pm-link:' + orgId);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(buildingId, ['owner', 'admin']);
@@ -106,6 +119,9 @@ export async function unlinkProperty(pmPropertyId: string) {
   if (!ctx) return { error: "Unauthorized: owner or admin role required" };
   const orgId = ctx.orgId;
 
+  const { success: rlOk } = await actionLimiter.check(10, 'action:pm-link:' + ctx.user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   const [mapping] = await db.select().from(pmPropertyMappings)
     .where(and(eq(pmPropertyMappings.orgId, orgId), eq(pmPropertyMappings.pmPropertyId, pmPropertyId)))
     .limit(1);
@@ -124,6 +140,9 @@ export async function unlinkProperty(pmPropertyId: string) {
 export async function importMeterData(pmPropertyId: string, buildingId: string) {
   const orgId = await getUserOrgId();
   if (!orgId) return { error: "Unauthorized" };
+
+  const { success: rlOk } = await actionLimiter.check(5, 'action:pm-import:' + orgId);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(buildingId, ['owner', 'admin']);

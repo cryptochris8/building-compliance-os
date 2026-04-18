@@ -191,7 +191,7 @@ export const processCsvImport = inngest.createFunction(
             }))
           ).onConflictDoNothing();
           rowsImported += batch.length;
-        } catch (err) {
+        } catch {
           // If batch fails, try individual inserts for this batch
           for (const r of batch) {
             try {

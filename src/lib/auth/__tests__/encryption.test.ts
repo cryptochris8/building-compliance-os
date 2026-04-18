@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // Set a valid 64-char hex key before importing
 process.env.ENCRYPTION_KEY = 'a'.repeat(64);

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import {
   createCheckoutSession,
@@ -7,6 +7,7 @@ import {
 } from '@/lib/stripe/client';
 import { apiLimiter } from '@/lib/rate-limit';
 import { getAuthContextWithBilling } from '@/lib/auth/helpers';
+import { apiSuccess, ApiErrors } from '@/lib/api/response';
 
 const checkoutSchema = z.object({
   priceId: z.string().min(1, 'priceId is required'),
@@ -16,31 +17,23 @@ const checkoutSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthContextWithBilling();
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!auth) return ApiErrors.unauthorized();
 
-    // Rate limit: 5 checkout attempts per minute per org
     const { success } = await apiLimiter.check(5, 'billing:' + auth.orgId);
-    if (!success) {
-      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
-    }
+    if (!success) return ApiErrors.tooManyRequests();
 
     const body = await request.json();
     const parsed = checkoutSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || 'Invalid request body' },
-        { status: 400 },
-      );
+      return ApiErrors.badRequest(parsed.error.issues[0]?.message || 'Invalid request body');
     }
     const { priceId } = parsed.data;
 
     const url = await createCheckoutSession(auth.orgId, priceId, auth.email);
-    return NextResponse.json({ url });
+    return apiSuccess({ url });
   } catch (err) {
     console.error('Billing checkout failed:', err);
-    return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 });
+    return ApiErrors.internal('Failed to create checkout session');
   }
 }
 
@@ -48,26 +41,21 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthContextWithBilling();
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!auth) return ApiErrors.unauthorized();
 
     const action = request.nextUrl.searchParams.get('action');
 
     if (action === 'portal') {
       if (!auth.stripeCustomerId) {
-        return NextResponse.json(
-          { error: 'No active billing account' },
-          { status: 400 },
-        );
+        return ApiErrors.badRequest('No active billing account');
       }
       const url = await createPortalSession(auth.stripeCustomerId);
-      return NextResponse.json({ url });
+      return apiSuccess({ url });
     }
 
     // Default: get subscription status
     if (!auth.stripeCustomerId) {
-      return NextResponse.json({
+      return apiSuccess({
         tier: 'free',
         status: 'active',
         trialEnd: null,
@@ -78,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     const sub = await getSubscription(auth.stripeCustomerId);
     if (!sub) {
-      return NextResponse.json({
+      return apiSuccess({
         tier: 'free',
         status: 'active',
         trialEnd: null,
@@ -87,9 +75,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(sub);
+    return apiSuccess(sub);
   } catch (err) {
     console.error('Billing GET failed:', err);
-    return NextResponse.json({ error: 'Failed to retrieve billing information' }, { status: 500 });
+    return ApiErrors.internal('Failed to retrieve billing information');
   }
 }

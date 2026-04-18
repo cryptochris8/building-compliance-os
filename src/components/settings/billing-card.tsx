@@ -94,11 +94,11 @@ export function BillingCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priceId }),
       });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else if (data.error) {
-        setError(data.error);
+      const body = await res.json();
+      if (body.data?.url) {
+        window.location.href = body.data.url;
+      } else if (body.error) {
+        setError(body.error.message ?? body.error);
       }
     } catch (err) {
       console.error('Billing subscribe error:', err);
@@ -114,11 +114,11 @@ export function BillingCard({
     setError(null);
     try {
       const res = await fetch('/api/billing?action=portal');
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else if (data.error) {
-        setError(data.error);
+      const body = await res.json();
+      if (body.data?.url) {
+        window.location.href = body.data.url;
+      } else if (body.error) {
+        setError(body.error.message ?? body.error);
       }
     } catch (err) {
       console.error('Billing portal error:', err);

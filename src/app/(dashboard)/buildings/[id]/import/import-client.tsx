@@ -99,13 +99,13 @@ export default function ImportClient() {
         body: formData,
       });
 
-      const result = await response.json();
+      const body = await response.json();
 
       if (!response.ok) {
-        setError(result.error || "Import failed");
+        setError(body.error?.message ?? body.error ?? "Import failed");
       } else {
+        const result = body.data ?? body;
         setImportJob(result);
-        // Poll for status updates
         if (result.id) {
           pollJobStatus(result.id);
         }
@@ -123,7 +123,8 @@ export default function ImportClient() {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       try {
         const res = await fetch("/api/import-jobs/" + jobId);
-        const job = await res.json();
+        const body = await res.json();
+        const job = body.data ?? body;
         setImportJob(job);
         if (job.status === "completed" || job.status === "failed") break;
       } catch (err) {

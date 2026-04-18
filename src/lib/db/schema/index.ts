@@ -29,6 +29,7 @@ export const users = pgTable('users', {
   role: userRoleEnum('role').default('member'),
   fullName: text('full_name'),
   email: text('email').notNull(),
+  onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => [
   index('idx_users_org_id').on(table.organizationId),
@@ -247,6 +248,28 @@ export const deductionsRelations = relations(deductions, ({ one }) => ({
   documentation: one(documents, { fields: [deductions.documentationId], references: [documents.id] }),
 }));
 
+
+// Organization Invitations
+export const invitationStatusEnum = pgEnum('invitation_status', ['pending', 'accepted', 'expired', 'canceled']);
+
+export const orgInvitations = pgTable('org_invitations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
+  email: text('email').notNull(),
+  role: userRoleEnum('role').default('member').notNull(),
+  status: invitationStatusEnum('status').default('pending').notNull(),
+  invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => [
+  index('idx_org_invitations_org_id').on(table.organizationId),
+  index('idx_org_invitations_email').on(table.email),
+]);
+
+export const orgInvitationsRelations = relations(orgInvitations, ({ one }) => ({
+  organization: one(organizations, { fields: [orgInvitations.organizationId], references: [organizations.id] }),
+  inviter: one(users, { fields: [orgInvitations.invitedBy], references: [users.id] }),
+}));
 
 // Phase 5: Portfolio Manager
 export { pmConnections, pmPropertyMappings, pmConnectionsRelations, pmPropertyMappingsRelations } from './pm';

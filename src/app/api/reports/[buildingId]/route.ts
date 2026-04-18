@@ -4,11 +4,12 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { ComplianceReportDocument } from "@/lib/reports/compliance-report";
 import { assembleReportData } from "@/lib/reports/assemble-report-data";
-import { assertBuildingAccess } from "@/lib/auth/helpers";
+import { getAuthUser, assertBuildingAccess } from "@/lib/auth/helpers";
 import { apiLimiter } from "@/lib/rate-limit";
 import { checkAccess } from "@/lib/billing/feature-gate";
 import { inngest } from "@/lib/inngest/client";
 import { randomUUID } from "crypto";
+import { apiSuccess, apiError, ApiErrors } from "@/lib/api/response";
 
 const yearParamSchema = z.coerce.number().int().min(2000).max(2100);
 
@@ -21,25 +22,25 @@ export async function GET(
 
     // Rate limit: 10 report generations per minute per building
     const { success } = await apiLimiter.check(10, 'report:' + buildingId);
-    if (!success) {
-      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
-    }
+    if (!success) return ApiErrors.tooManyRequests();
+
+    // Verify authentication
+    const authUser = await getAuthUser();
+    if (!authUser) return ApiErrors.unauthorized();
 
     // Verify building ownership
     const access = await assertBuildingAccess(buildingId);
-    if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!access) return ApiErrors.forbidden();
 
     // Enforce feature gate: report generation requires pro or portfolio tier
     const hasAccess = await checkAccess(access.orgId, 'reportGeneration');
     if (!hasAccess) {
-      return NextResponse.json({ error: "Report generation requires a Pro or Portfolio plan. Please upgrade." }, { status: 403 });
+      return apiError("Report generation requires a Pro or Portfolio plan. Please upgrade.", 403, 'FEATURE_GATED');
     }
 
     const url = new URL(request.url);
     const yearResult = yearParamSchema.safeParse(url.searchParams.get("year") || new Date().getFullYear());
-    if (!yearResult.success) {
-      return NextResponse.json({ error: "Invalid year parameter" }, { status: 400 });
-    }
+    if (!yearResult.success) return ApiErrors.badRequest("Invalid year parameter");
     const year = yearResult.data;
 
     // Async mode: offload to Inngest background job (non-blocking)
@@ -50,17 +51,13 @@ export async function GET(
         name: "report/generate.requested",
         data: { buildingId, year, jobId },
       });
-      return NextResponse.json({
-        jobId,
-        status: "processing",
-        message: "Report generation started. The PDF will be available in Supabase Storage.",
-      }, { status: 202 });
+      return apiSuccess({ jobId, status: "processing", message: "Report generation started. The PDF will be available in Supabase Storage." }, 202);
     }
 
     // Synchronous mode: generate and stream PDF directly
     const result = await assembleReportData(buildingId, year);
     if (!result.data) {
-      return NextResponse.json({ error: result.error }, { status: 404 });
+      return ApiErrors.notFound("Compliance data");
     }
 
     const element = React.createElement(ComplianceReportDocument, { data: result.data });
@@ -79,6 +76,6 @@ export async function GET(
     });
   } catch (error) {
     console.error('Report generation failed:', error);
-    return NextResponse.json({ error: "Report generation failed" }, { status: 500 });
+    return ApiErrors.internal("Report generation failed");
   }
 }

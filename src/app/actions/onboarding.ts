@@ -1,9 +1,10 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { buildings, utilityReadings } from '@/lib/db/schema';
+import { buildings, users, utilityReadings } from '@/lib/db/schema';
 import { eq, count, inArray } from 'drizzle-orm';
-import { getUserOrgId } from '@/lib/auth/helpers';
+import { getAuthUser } from '@/lib/auth/helpers';
+import { actionLimiter } from '@/lib/rate-limit';
 
 interface OnboardingStatus {
   completed: boolean;
@@ -13,7 +14,23 @@ interface OnboardingStatus {
 }
 
 export async function getOnboardingStatus(): Promise<OnboardingStatus> {
-  const orgId = await getUserOrgId();
+  const authUser = await getAuthUser();
+  if (!authUser) {
+    return { completed: false, currentStep: 1, hasBuilding: false, hasReadings: false };
+  }
+
+  // Check if user has already dismissed onboarding
+  const [dbUser] = await db
+    .select({ organizationId: users.organizationId, onboardingCompletedAt: users.onboardingCompletedAt })
+    .from(users)
+    .where(eq(users.id, authUser.id))
+    .limit(1);
+
+  if (dbUser?.onboardingCompletedAt) {
+    return { completed: true, currentStep: 4, hasBuilding: true, hasReadings: true };
+  }
+
+  const orgId = dbUser?.organizationId;
   if (!orgId) {
     return { completed: false, currentStep: 1, hasBuilding: false, hasReadings: false };
   }
@@ -48,14 +65,17 @@ export async function getOnboardingStatus(): Promise<OnboardingStatus> {
   };
 }
 
-export async function completeStep(step: number): Promise<{ success: boolean }> {
-  // Steps are tracked implicitly by data presence
-  // This action can be used for analytics or state tracking
-  void step;
-  return { success: true };
-}
-
 export async function markOnboardingComplete(): Promise<{ success: boolean }> {
-  // Mark onboarding as complete - could set a flag on the user/org
+  const authUser = await getAuthUser();
+  if (!authUser) return { success: false };
+
+  const { success: rlOk } = await actionLimiter.check(5, 'action:onboarding:' + authUser.id);
+  if (!rlOk) return { success: false };
+
+  await db
+    .update(users)
+    .set({ onboardingCompletedAt: new Date() })
+    .where(eq(users.id, authUser.id));
+
   return { success: true };
 }

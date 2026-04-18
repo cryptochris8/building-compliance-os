@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { importJobs } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getUserOrgId } from "@/lib/auth/helpers";
+import { apiSuccess, ApiErrors } from "@/lib/api/response";
 
 export async function GET(
   _request: NextRequest,
@@ -11,25 +12,19 @@ export async function GET(
   try {
     const { id } = await params;
 
-    // Verify user is authenticated and get their org
     const orgId = await getUserOrgId();
-    if (!orgId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!orgId) return ApiErrors.unauthorized();
 
-    // Only return jobs belonging to the user's organization
     const jobs = await db
       .select()
       .from(importJobs)
       .where(and(eq(importJobs.id, id), eq(importJobs.organizationId, orgId)));
 
-    if (jobs.length === 0) {
-      return NextResponse.json({ error: "Import job not found" }, { status: 404 });
-    }
+    if (jobs.length === 0) return ApiErrors.notFound('Import job');
 
     const job = jobs[0];
 
-    return NextResponse.json({
+    return apiSuccess({
       id: job.id,
       status: job.status,
       fileName: job.fileName,
@@ -42,6 +37,6 @@ export async function GET(
     });
   } catch (error) {
     console.error('Import job lookup failed:', error);
-    return NextResponse.json({ error: "Failed to get import job" }, { status: 500 });
+    return ApiErrors.internal("Failed to get import job");
   }
 }

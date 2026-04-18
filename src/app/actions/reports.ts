@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { buildings, complianceYears } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getAuthUser, assertBuildingAccess, getUserOrgId, WRITE_ROLES } from "@/lib/auth/helpers";
+import { actionLimiter } from "@/lib/rate-limit";
 
 export async function getReportHistory(buildingId: string) {
   const authUser = await getAuthUser();
@@ -49,6 +50,9 @@ export async function getAvailableYears(buildingId: string) {
 export async function markReportSubmitted(buildingId: string, year: number) {
   const authUser = await getAuthUser();
   if (!authUser) return { error: "Unauthorized" };
+
+  const { success: rlOk } = await actionLimiter.check(10, 'action:report:' + authUser.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(buildingId, WRITE_ROLES);

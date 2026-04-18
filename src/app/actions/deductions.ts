@@ -99,6 +99,9 @@ export async function updateDeduction(id: string, data: DeductionFormValues) {
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized' };
 
+  const { success: rlOk } = await actionLimiter.check(20, 'action:deduction:' + user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   // Validate input
   const validated = deductionFormSchema.safeParse(data);
   if (!validated.success) return { error: 'Validation failed' };
@@ -138,6 +141,9 @@ export async function updateDeduction(id: string, data: DeductionFormValues) {
 export async function deleteDeduction(id: string, buildingId: string, complianceYearId: string) {
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(20, 'action:deduction:' + user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(buildingId, WRITE_ROLES);

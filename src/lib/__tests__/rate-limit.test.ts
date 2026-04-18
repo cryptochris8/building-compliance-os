@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // Mock the Upstash modules so they don't try to connect
 vi.mock('@upstash/ratelimit', () => ({ Ratelimit: vi.fn() }));

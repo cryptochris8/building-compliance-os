@@ -100,6 +100,9 @@ export async function updateReading(id: string, formData: ReadingFormValues) {
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized' };
 
+  const { success: rlOk } = await actionLimiter.check(20, 'action:reading:' + user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
+
   const validated = readingFormSchema.safeParse(formData);
   if (!validated.success) return { error: 'Validation failed', details: validated.error.flatten() };
   const data = validated.data;
@@ -147,6 +150,9 @@ export async function updateReading(id: string, formData: ReadingFormValues) {
 export async function deleteReading(id: string, buildingId: string) {
   const user = await getAuthUser();
   if (!user) return { error: 'Unauthorized' };
+
+  const { success: rlOk } = await actionLimiter.check(20, 'action:reading:' + user.id);
+  if (!rlOk) return { error: 'Too many requests. Please try again later.' };
 
   // Verify building ownership and write permission
   const access = await assertBuildingAccess(buildingId, WRITE_ROLES);

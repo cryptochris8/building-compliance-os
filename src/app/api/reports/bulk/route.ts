@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
-import { filterAuthorizedBuildingIds, getAuthContext } from "@/lib/auth/helpers";
+import { getAuthUser, filterAuthorizedBuildingIds } from "@/lib/auth/helpers";
 import { checkAccess } from "@/lib/billing/feature-gate";
+import { apiSuccess, apiError, ApiErrors } from "@/lib/api/response";
 
 const bulkReportSchema = z.object({
   buildingIds: z.array(z.string().uuid()).min(1, "At least one building ID required"),
@@ -13,26 +13,28 @@ export async function POST(request: Request) {
     const body = await request.json();
     const parsed = bulkReportSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid request" }, { status: 400 });
+      return ApiErrors.badRequest(parsed.error.issues[0]?.message || "Invalid request");
     }
     const { buildingIds, year } = parsed.data;
 
-    const auth = await filterAuthorizedBuildingIds(buildingIds);
-    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authUser = await getAuthUser();
+    if (!authUser) return ApiErrors.unauthorized();
 
-    // Enforce feature gate: bulk operations require portfolio tier
+    const auth = await filterAuthorizedBuildingIds(buildingIds);
+    if (!auth) return ApiErrors.forbidden();
+
     const hasBulkAccess = await checkAccess(auth.orgId, 'bulkOperations');
     if (!hasBulkAccess) {
-      return NextResponse.json({ error: "Bulk operations require a Portfolio plan. Please upgrade." }, { status: 403 });
+      return apiError("Bulk operations require a Portfolio plan. Please upgrade.", 403, 'FEATURE_GATED');
     }
 
     const results: Array<{ buildingId: string; url: string }> = [];
     for (const buildingId of auth.authorizedIds) {
       results.push({ buildingId, url: "/api/reports/" + buildingId + "?year=" + year });
     }
-    return NextResponse.json({ reports: results, year });
+    return apiSuccess({ reports: results, year });
   } catch (error) {
     console.error('Bulk report generation failed:', error);
-    return NextResponse.json({ error: "Bulk report generation failed" }, { status: 500 });
+    return ApiErrors.internal("Bulk report generation failed");
   }
 }
