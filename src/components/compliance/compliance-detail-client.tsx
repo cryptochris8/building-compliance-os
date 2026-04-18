@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AlertTriangle, CheckCircle2, XCircle, HelpCircle, RefreshCw } from "lucide-react";
 import { FuelBreakdownChart } from "./fuel-breakdown-chart";
 import { MonthlyEmissionsChart } from "./monthly-emissions-chart";
@@ -188,35 +189,46 @@ export function ComplianceDetailClient({
         </Card>
       )}
 
-      <ComplianceStatusHero
-        statusConfig={statusConfig}
-        totalEmissions={totalEmissions}
-        emissionsLimit={emissionsLimit}
-        penalty={penalty}
-      />
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="emissions">Emissions</TabsTrigger>
+          <TabsTrigger value="planning">Planning</TabsTrigger>
+        </TabsList>
 
-      <DataCompletenessCard completeness={completeness} missingMonths={missingMonths} />
+        <TabsContent value="overview" className="space-y-6">
+          <ComplianceStatusHero
+            statusConfig={statusConfig}
+            totalEmissions={totalEmissions}
+            emissionsLimit={emissionsLimit}
+            penalty={penalty}
+          />
+          <DataCompletenessCard completeness={completeness} missingMonths={missingMonths} />
+        </TabsContent>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <FuelBreakdownChart breakdownByFuel={fuelBreakdown} totalEmissions={totalEmissions} />
-        <MonthlyEmissionsChart breakdownByMonth={monthBreakdown} breakdownByFuel={fuelBreakdown} annualLimit={emissionsLimit} year={selectedYear} />
-      </div>
+        <TabsContent value="emissions" className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <FuelBreakdownChart breakdownByFuel={fuelBreakdown} totalEmissions={totalEmissions} />
+            <MonthlyEmissionsChart breakdownByMonth={monthBreakdown} breakdownByFuel={fuelBreakdown} annualLimit={emissionsLimit} year={selectedYear} />
+          </div>
+          <EmissionsBreakdownTable
+            fuelBreakdown={fuelBreakdown}
+            consumptionByFuel={consumptionByFuel}
+            totalEmissions={totalEmissions}
+          />
+          <EmissionsTrendChart data={allComplianceYears} />
+        </TabsContent>
 
-      <EmissionsBreakdownTable
-        fuelBreakdown={fuelBreakdown}
-        consumptionByFuel={consumptionByFuel}
-        totalEmissions={totalEmissions}
-      />
-
-      <EmissionsTrendChart data={allComplianceYears} />
-
-      <WhatIfCalculator
-        breakdownByFuel={fuelBreakdown}
-        totalEmissions={totalEmissions}
-        emissionsLimit={emissionsLimit}
-        penaltyPerTon={penaltyPerTon}
-        currentPenalty={penalty}
-      />
+        <TabsContent value="planning" className="space-y-6">
+          <WhatIfCalculator
+            breakdownByFuel={fuelBreakdown}
+            totalEmissions={totalEmissions}
+            emissionsLimit={emissionsLimit}
+            penaltyPerTon={penaltyPerTon}
+            currentPenalty={penalty}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -150,7 +150,7 @@ describe('Stripe webhook — signature & rate limiting', () => {
   });
 
   it('returns 429 when rate limit exceeded', async () => {
-    constructEvent.mockReturnValue({ type: 'unknown.event', data: { object: {} } } as Stripe.Event);
+    constructEvent.mockReturnValue({ type: 'unknown.event', data: { object: {} } } as unknown as Stripe.Event);
     webhookCheck.mockResolvedValue({ success: false, remaining: 0 });
     const res = await POST(makeRequest('{}') as never);
     expect(res.status).toBe(429);
