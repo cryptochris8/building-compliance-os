@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   FileBarChart,
   Settings,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ const navigation = [
   { name: "Compliance", href: "/compliance", icon: ShieldCheck },
   { name: "Reports", href: "/portfolio", icon: FileBarChart },
   { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Glossary", href: "/help/glossary", icon: BookOpen },
 ];
 
 export function SidebarNav() {
