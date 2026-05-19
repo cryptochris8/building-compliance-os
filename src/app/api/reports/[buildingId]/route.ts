@@ -7,6 +7,7 @@ import { assembleReportData } from "@/lib/reports/assemble-report-data";
 import { getAuthUser, assertBuildingAccess } from "@/lib/auth/helpers";
 import { apiLimiter } from "@/lib/rate-limit";
 import { checkAccess } from "@/lib/billing/feature-gate";
+import { getReportWatermark } from "@/lib/billing/watermark";
 import { inngest } from "@/lib/inngest/client";
 import { randomUUID } from "crypto";
 import { apiSuccess, apiError, ApiErrors } from "@/lib/api/response";
@@ -50,7 +51,7 @@ export async function GET(
       const jobId = randomUUID();
       await inngest.send({
         name: "report/generate.requested",
-        data: { buildingId, year, jobId },
+        data: { buildingId, year, jobId, orgId: access.orgId },
       });
       return apiSuccess({ jobId, status: "processing", message: "Report generation started. The PDF will be available in Supabase Storage." }, 202);
     }
@@ -61,12 +62,16 @@ export async function GET(
       return ApiErrors.notFound("Compliance data");
     }
 
-    const element = React.createElement(ComplianceReportDocument, { data: result.data });
+    // Trial subscriptions produce a watermarked, unfilable PDF; paid plans produce a clean one.
+    const watermark = await getReportWatermark(access.orgId);
+
+    const element = React.createElement(ComplianceReportDocument, { data: result.data, watermark });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfBuffer = await renderToBuffer(element as any);
 
     const safeName = result.buildingName.replace(/[^a-zA-Z0-9]/g, "_");
-    const fileName = safeName + "_compliance_" + year + ".pdf";
+    const prefix = watermark ? "TRIAL_" : "";
+    const fileName = prefix + safeName + "_compliance_" + year + ".pdf";
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,

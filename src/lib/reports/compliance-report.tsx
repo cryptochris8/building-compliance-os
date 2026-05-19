@@ -47,6 +47,18 @@ const styles = StyleSheet.create({
   footer: { position: "absolute", bottom: 20, left: 40, right: 40, textAlign: "center", fontSize: 7, color: colors.darkGray },
   signatureLine: { borderBottomWidth: 1, borderBottomColor: colors.secondary, width: 200, marginTop: 40, marginBottom: 4 },
   signatureLabel: { fontSize: 8, color: colors.darkGray },
+  watermark: {
+    position: "absolute",
+    top: "40%",
+    left: "5%",
+    right: "5%",
+    textAlign: "center",
+    fontSize: 48,
+    fontFamily: "Helvetica-Bold",
+    color: colors.danger,
+    opacity: 0.25,
+    transform: "rotate(-30deg)",
+  },
 });
 export interface ReportData {
   building: {
@@ -98,14 +110,23 @@ function getStatusLabel(status: string): string {
 function fmt(n: number, d = 2): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
-export function ComplianceReportDocument({ data }: { data: ReportData }) {
+export function ComplianceReportDocument({
+  data,
+  watermark,
+}: {
+  data: ReportData;
+  watermark?: string | null;
+}) {
   const statusColor = getStatusColor(data.compliance.status);
   const statusLabel = getStatusLabel(data.compliance.status);
   const surplus = data.compliance.totalEmissions - data.compliance.emissionsLimit;
+  const Wm = () =>
+    watermark ? <Text style={styles.watermark} fixed>{watermark}</Text> : null;
   return (
     <Document>
       {/* Cover Page */}
       <Page size="LETTER" style={styles.page}>
+        <Wm />
         <View style={styles.coverPage}>
           <Text style={styles.coverTitle}>Compliance Report</Text>
           <Text style={styles.coverSubtitle}>Building Emissions Report - {data.compliance.year}</Text>
@@ -127,6 +148,7 @@ export function ComplianceReportDocument({ data }: { data: ReportData }) {
 
       {/* Executive Summary */}
       <Page size="LETTER" style={styles.page}>
+        <Wm />
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{data.building.name}</Text>
           <Text style={styles.headerPage}>Executive Summary</Text>
@@ -167,6 +189,7 @@ export function ComplianceReportDocument({ data }: { data: ReportData }) {
       </Page>
       {/* Emissions Detail */}
       <Page size="LETTER" style={styles.page}>
+        <Wm />
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{data.building.name}</Text>
           <Text style={styles.headerPage}>Emissions Detail</Text>
@@ -212,6 +235,7 @@ export function ComplianceReportDocument({ data }: { data: ReportData }) {
 
       {/* Data Sources and Deductions */}
       <Page size="LETTER" style={styles.page}>
+        <Wm />
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{data.building.name}</Text>
           <Text style={styles.headerPage}>Data Sources</Text>
@@ -249,6 +273,7 @@ export function ComplianceReportDocument({ data }: { data: ReportData }) {
 
       {/* Certification */}
       <Page size="LETTER" style={styles.page}>
+        <Wm />
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{data.building.name}</Text>
           <Text style={styles.headerPage}>Certification</Text>

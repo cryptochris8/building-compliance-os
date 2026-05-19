@@ -3,16 +3,18 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import React from 'react';
 import { ComplianceReportDocument } from '@/lib/reports/compliance-report';
 import { assembleReportData } from '@/lib/reports/assemble-report-data';
+import { getReportWatermark } from '@/lib/billing/watermark';
 import { createServiceClient } from '@/lib/supabase/service';
 
 export const generateReport = inngest.createFunction(
   { id: 'generate-report', retries: 2 },
   { event: 'report/generate.requested' },
   async ({ event }) => {
-    const { buildingId, year, jobId } = event.data as {
+    const { buildingId, year, jobId, orgId } = event.data as {
       buildingId: string;
       year: number;
       jobId: string;
+      orgId: string;
     };
 
     const result = await assembleReportData(buildingId, year);
@@ -22,8 +24,11 @@ export const generateReport = inngest.createFunction(
 
     const { data: reportData, buildingName } = result;
 
+    // Trial subscriptions produce a watermarked, unfilable PDF; paid plans produce a clean one.
+    const watermark = await getReportWatermark(orgId);
+
     // Render PDF
-    const element = React.createElement(ComplianceReportDocument, { data: reportData });
+    const element = React.createElement(ComplianceReportDocument, { data: reportData, watermark });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfBuffer = await renderToBuffer(element as any);
 
@@ -31,7 +36,8 @@ export const generateReport = inngest.createFunction(
     const supabase = createServiceClient();
 
     const safeName = buildingName.replace(/[^a-zA-Z0-9]/g, '_');
-    const storagePath = 'reports/' + buildingId + '/' + safeName + '_compliance_' + year + '_' + jobId + '.pdf';
+    const prefix = watermark ? 'TRIAL_' : '';
+    const storagePath = 'reports/' + buildingId + '/' + prefix + safeName + '_compliance_' + year + '_' + jobId + '.pdf';
 
     const { error: uploadError } = await supabase.storage
       .from('documents')
@@ -55,7 +61,7 @@ export const generateReport = inngest.createFunction(
       year,
       storagePath,
       downloadUrl: urlData?.signedUrl || null,
-      fileName: safeName + '_compliance_' + year + '.pdf',
+      fileName: prefix + safeName + '_compliance_' + year + '.pdf',
     };
   }
 );
