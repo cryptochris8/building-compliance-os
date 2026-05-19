@@ -128,6 +128,15 @@ export async function unlinkProperty(pmPropertyId: string) {
 
   if (!mapping) return { error: "Property mapping not found" };
 
+  // Defense-in-depth: if currently linked, verify the caller still has access
+  // to the linked building. The org-scoped SELECT above already prevents
+  // cross-org mappings, but this catches an admin in org A unlinking a mapping
+  // whose buildingId has somehow been reassigned to org B.
+  if (mapping.buildingId) {
+    const access = await assertBuildingAccess(mapping.buildingId);
+    if (!access) return { error: "Access denied" };
+  }
+
   await db.update(pmPropertyMappings).set({
     buildingId: null,
     linkedAt: null,

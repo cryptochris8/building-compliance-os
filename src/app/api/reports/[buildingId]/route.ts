@@ -20,17 +20,18 @@ export async function GET(
   try {
     const { buildingId } = await params;
 
-    // Rate limit: 10 report generations per minute per building
-    const { success } = await apiLimiter.check(10, 'report:' + buildingId);
-    if (!success) return ApiErrors.tooManyRequests();
-
-    // Verify authentication
+    // Verify authentication BEFORE rate limiting so attackers cycling random
+    // buildingIds cannot exhaust per-building buckets and DoS legitimate users.
     const authUser = await getAuthUser();
     if (!authUser) return ApiErrors.unauthorized();
 
     // Verify building ownership
     const access = await assertBuildingAccess(buildingId);
     if (!access) return ApiErrors.forbidden();
+
+    // Rate limit: 10 report generations per minute per user
+    const { success } = await apiLimiter.check(10, 'report:user:' + authUser.id);
+    if (!success) return ApiErrors.tooManyRequests();
 
     // Enforce feature gate: report generation requires pro or portfolio tier
     const hasAccess = await checkAccess(access.orgId, 'reportGeneration');

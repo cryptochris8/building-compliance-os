@@ -16,14 +16,16 @@ export async function POST(
   try {
     const { id: buildingId } = await params;
 
-    const { success } = await apiLimiter.check(5, 'import:' + buildingId);
-    if (!success) return ApiErrors.tooManyRequests();
-
+    // Verify authentication BEFORE rate limiting so attackers cycling random
+    // buildingIds cannot exhaust per-building buckets and DoS legitimate users.
     const authUser = await getAuthUser();
     if (!authUser) return ApiErrors.unauthorized();
 
     const access = await assertBuildingAccess(buildingId, WRITE_ROLES);
     if (!access) return ApiErrors.forbidden();
+
+    const { success } = await apiLimiter.check(5, 'import:user:' + authUser.id);
+    if (!success) return ApiErrors.tooManyRequests();
 
     const hasAccess = await checkAccess(access.orgId, 'csvUpload');
     if (!hasAccess) {

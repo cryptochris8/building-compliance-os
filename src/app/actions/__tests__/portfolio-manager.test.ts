@@ -364,12 +364,33 @@ describe('unlinkProperty', () => {
     expect(await unlinkProperty('pm-1')).toEqual({ error: 'Property mapping not found' });
   });
 
-  it('nulls buildingId and linkedAt on success', async () => {
+  it('nulls buildingId and linkedAt on success when mapping is not linked', async () => {
     assertRole.mockResolvedValue(CTX());
     selectQueue.push([{ id: 'map-1' }]);
     const result = await unlinkProperty('pm-1');
     expect(result).toEqual({ success: true });
     expect(updates[0].set).toEqual({ buildingId: null, linkedAt: null });
+    // No building access check when not linked
+    expect(assertBuildingAccess).not.toHaveBeenCalled();
+  });
+
+  it('verifies building access when mapping is linked, then unlinks', async () => {
+    assertRole.mockResolvedValue(CTX());
+    selectQueue.push([{ id: 'map-1', buildingId: 'b-1' }]);
+    assertBuildingAccess.mockResolvedValue({ orgId: 'org-1', role: 'admin' });
+    const result = await unlinkProperty('pm-1');
+    expect(result).toEqual({ success: true });
+    expect(assertBuildingAccess).toHaveBeenCalledWith('b-1', undefined);
+    expect(updates[0].set).toEqual({ buildingId: null, linkedAt: null });
+  });
+
+  it('refuses to unlink when caller no longer has access to the linked building', async () => {
+    assertRole.mockResolvedValue(CTX());
+    selectQueue.push([{ id: 'map-1', buildingId: 'b-1' }]);
+    assertBuildingAccess.mockResolvedValue(null);
+    const result = await unlinkProperty('pm-1');
+    expect(result).toEqual({ error: 'Access denied' });
+    expect(updates).toHaveLength(0);
   });
 });
 
