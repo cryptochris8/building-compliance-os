@@ -275,4 +275,4 @@ export const orgInvitationsRelations = relations(orgInvitations, ({ one }) => ({
 export { pmConnections, pmPropertyMappings, pmConnectionsRelations, pmPropertyMappingsRelations } from './pm';
 
 // Phase 6: Subscriptions / Billing
-export { subscriptions, subscriptionStatusEnum, subscriptionsRelations } from './subscriptions';
+export { subscriptions, subscriptionStatusEnum, subscriptionsRelations, processedStripeEvents } from './subscriptions';

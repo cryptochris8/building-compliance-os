@@ -242,7 +242,7 @@ describe('createReading', () => {
     expect(inserts[0]).toMatchObject({ costDollars: null });
   });
 
-  it('swallows a failing recalculation trigger without failing the create', async () => {
+  it('surfaces recalcFailed=true when recalculation throws but still succeeds the create', async () => {
     getAuthUser.mockResolvedValue(USER);
     assertBuildingAccess.mockResolvedValue(ACCESS);
     selectQueue.push([{ id: 'acc-1' }]);
@@ -251,8 +251,18 @@ describe('createReading', () => {
     triggerRecalculation.mockRejectedValue(new Error('recalc boom'));
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const result = await createReading(validPayload());
-    expect(result).toMatchObject({ success: true });
+    expect(result).toMatchObject({ success: true, recalcFailed: true });
     errSpy.mockRestore();
+  });
+
+  it('returns recalcFailed=false on the happy path', async () => {
+    getAuthUser.mockResolvedValue(USER);
+    assertBuildingAccess.mockResolvedValue(ACCESS);
+    selectQueue.push([{ id: 'acc-1' }]);
+    selectQueue.push([{ locked: false }]);
+    insertReturn.push([{ id: 'r-new' }]);
+    const result = await createReading(validPayload());
+    expect(result).toMatchObject({ success: true, recalcFailed: false });
   });
 });
 
@@ -305,9 +315,22 @@ describe('updateReading', () => {
     selectQueue.push([{ locked: false }]);
     updateReturn.push([{ id: 'r-1', consumptionValue: '999' }]);
     const result = await updateReading('r-1', validPayload({ consumptionValue: '999' }));
-    expect(result).toMatchObject({ success: true, reading: { id: 'r-1' } });
+    expect(result).toMatchObject({ success: true, reading: { id: 'r-1' }, recalcFailed: false });
     expect(updates[0]).toMatchObject({ consumptionValue: '999' });
     expect(triggerRecalculation).toHaveBeenCalledWith('b1');
+  });
+
+  it('surfaces recalcFailed=true when recalculation throws after a successful update', async () => {
+    getAuthUser.mockResolvedValue(USER);
+    assertBuildingAccess.mockResolvedValue(ACCESS);
+    selectQueue.push([{ id: 'acc-1' }]);
+    selectQueue.push([{ locked: false }]);
+    updateReturn.push([{ id: 'r-1' }]);
+    triggerRecalculation.mockRejectedValue(new Error('recalc boom'));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const result = await updateReading('r-1', validPayload());
+    expect(result).toMatchObject({ success: true, recalcFailed: true });
+    errSpy.mockRestore();
   });
 });
 
@@ -362,8 +385,21 @@ describe('deleteReading', () => {
     selectQueue.push([{ periodStart: '2026-05-01' }]);
     selectQueue.push([{ locked: false }]);
     const result = await deleteReading('r-1', 'b1');
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, recalcFailed: false });
     expect(deletes).toHaveLength(1);
     expect(triggerRecalculation).toHaveBeenCalledWith('b1');
+  });
+
+  it('surfaces recalcFailed=true when recalculation throws after a successful delete', async () => {
+    getAuthUser.mockResolvedValue(USER);
+    assertBuildingAccess.mockResolvedValue(ACCESS);
+    selectQueue.push([{ periodStart: '2026-05-01' }]);
+    selectQueue.push([{ locked: false }]);
+    triggerRecalculation.mockRejectedValue(new Error('recalc boom'));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const result = await deleteReading('r-1', 'b1');
+    expect(result).toEqual({ success: true, recalcFailed: true });
+    expect(deletes).toHaveLength(1);
+    errSpy.mockRestore();
   });
 });

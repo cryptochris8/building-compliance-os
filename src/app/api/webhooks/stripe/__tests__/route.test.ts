@@ -26,16 +26,42 @@ interface TxCapture {
 }
 
 const txCapture: TxCapture = { inserts: [], updates: [] };
-const nonTxUpdates: Array<{ table: unknown; set: Record<string, unknown> }> = [];
-let selectResult: Array<Record<string, unknown>> = [];
+// idempotencyClaim returns the rows from the ON CONFLICT DO NOTHING ... RETURNING.
+// Empty array = event was already processed (duplicate). Non-empty = first time.
+const idempotencyClaim = vi.fn();
+// selectInsideTx is used by invoice.payment_failed to look up orgId before update.
+let selectInsideTxResult: Array<Record<string, unknown>> = [];
+
+// Tag schema tables so the tx stub can route by name.
+vi.mock('@/lib/db/schema', () => ({
+  organizations: { _name: 'organizations' },
+  subscriptions: { _name: 'subscriptions' },
+  processedStripeEvents: {
+    _name: 'processed_stripe_events',
+    eventId: { _name: 'event_id' },
+  },
+}));
 
 const fakeTx = {
-  insert: (table: unknown) => ({
-    values: (values: Record<string, unknown>) => {
-      txCapture.inserts.push({ table, values });
-      return Promise.resolve();
-    },
-  }),
+  insert: (table: { _name?: string }) => {
+    if (table._name === 'processed_stripe_events') {
+      return {
+        values: (v: Record<string, unknown>) => ({
+          onConflictDoNothing: () => ({
+            returning: () => {
+              return idempotencyClaim(v);
+            },
+          }),
+        }),
+      };
+    }
+    return {
+      values: (values: Record<string, unknown>) => {
+        txCapture.inserts.push({ table, values });
+        return Promise.resolve();
+      },
+    };
+  },
   update: (table: unknown) => ({
     set: (set: Record<string, unknown>) => ({
       where: (where: unknown) => {
@@ -44,27 +70,20 @@ const fakeTx = {
       },
     }),
   }),
+  select: () => ({
+    from: () => ({
+      where: () => ({
+        limit: async () => selectInsideTxResult,
+      }),
+    }),
+  }),
 };
 
-const transaction = vi.fn(async (fn: (tx: typeof fakeTx) => Promise<void>) => fn(fakeTx));
+const transaction = vi.fn(async (fn: (tx: typeof fakeTx) => Promise<boolean>) => fn(fakeTx));
 
 vi.mock('@/lib/db', () => ({
   db: {
-    transaction: (fn: (tx: typeof fakeTx) => Promise<void>) => transaction(fn),
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: async () => selectResult,
-        }),
-      }),
-    }),
-    update: (table: unknown) => ({
-      set: (set: Record<string, unknown>) => ({
-        where: async () => {
-          nonTxUpdates.push({ table, set });
-        },
-      }),
-    }),
+    transaction: (fn: (tx: typeof fakeTx) => Promise<boolean>) => transaction(fn),
   },
 }));
 
@@ -103,8 +122,9 @@ beforeEach(() => {
   webhookCheck.mockReset().mockResolvedValue({ success: true, remaining: 29 });
   txCapture.inserts = [];
   txCapture.updates = [];
-  nonTxUpdates.length = 0;
-  selectResult = [];
+  selectInsideTxResult = [];
+  // Default: idempotency claim succeeds (event has not been seen).
+  idempotencyClaim.mockReset().mockResolvedValue([{ eventId: 'evt_1' }]);
 });
 
 // ---------------------------------------------------------------------------
@@ -150,18 +170,19 @@ describe('Stripe webhook — signature & rate limiting', () => {
   });
 
   it('returns 429 when rate limit exceeded', async () => {
-    constructEvent.mockReturnValue({ type: 'unknown.event', data: { object: {} } } as unknown as Stripe.Event);
+    constructEvent.mockReturnValue({ id: 'evt_1', type: 'unknown.event', data: { object: {} } } as unknown as Stripe.Event);
     webhookCheck.mockResolvedValue({ success: false, remaining: 0 });
     const res = await POST(makeRequest('{}') as never);
     expect(res.status).toBe(429);
   });
 
-  it('returns 200 for unhandled event types', async () => {
-    constructEvent.mockReturnValue({ type: 'ping.pong', data: { object: {} } } as unknown as Stripe.Event);
+  it('returns 200 for unhandled event types without claiming idempotency', async () => {
+    constructEvent.mockReturnValue({ id: 'evt_1', type: 'ping.pong', data: { object: {} } } as unknown as Stripe.Event);
     const res = await POST(makeRequest('{}') as never);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { received: boolean };
     expect(body.received).toBe(true);
+    expect(idempotencyClaim).not.toHaveBeenCalled();
   });
 });
 
@@ -172,10 +193,11 @@ describe('Stripe webhook — signature & rate limiting', () => {
 describe('Stripe webhook — checkout.session.completed', () => {
   function checkoutEvent(overrides: Partial<Stripe.Checkout.Session> = {}): Stripe.Event {
     return {
+      id: 'evt_checkout_1',
       type: 'checkout.session.completed',
       data: {
         object: {
-          metadata: { orgId: 'org_123' },
+          metadata: { orgId: '11111111-1111-4111-8111-111111111111' },
           subscription: 'sub_abc',
           customer: 'cus_xyz',
           ...overrides,
@@ -184,7 +206,7 @@ describe('Stripe webhook — checkout.session.completed', () => {
     } as Stripe.Event;
   }
 
-  it('no-ops when orgId is missing from metadata', async () => {
+  it('no-ops when orgId is missing from metadata (Zod validation fails)', async () => {
     constructEvent.mockReturnValue(checkoutEvent({ metadata: {} }));
     const res = await POST(makeRequest('{}') as never);
     expect(res.status).toBe(200);
@@ -198,13 +220,22 @@ describe('Stripe webhook — checkout.session.completed', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it('is idempotent — skips if subscription already exists', async () => {
+  it('returns { received, duplicate: true } when event was already processed', async () => {
     constructEvent.mockReturnValue(checkoutEvent());
-    selectResult = [{ id: 'existing-sub-id' }];
+    retrieveSubscription.mockResolvedValue({
+      status: 'active',
+      trial_end: null,
+      items: { data: [subItem('price_pro', 1_800_000_000)] },
+    } as unknown as Stripe.Subscription);
+    idempotencyClaim.mockResolvedValue([]); // empty = duplicate
+
     const res = await POST(makeRequest('{}') as never);
+
     expect(res.status).toBe(200);
-    expect(retrieveSubscription).not.toHaveBeenCalled();
-    expect(transaction).not.toHaveBeenCalled();
+    const body = (await res.json()) as { received: boolean; duplicate?: boolean };
+    expect(body).toEqual({ received: true, duplicate: true });
+    expect(txCapture.inserts).toHaveLength(0);
+    expect(txCapture.updates).toHaveLength(0);
   });
 
   it('inserts subscription and updates org tier for pro checkout', async () => {
@@ -220,9 +251,10 @@ describe('Stripe webhook — checkout.session.completed', () => {
     expect(res.status).toBe(200);
     expect(retrieveSubscription).toHaveBeenCalledWith('sub_abc');
     expect(transaction).toHaveBeenCalledTimes(1);
+    expect(idempotencyClaim).toHaveBeenCalledWith({ eventId: 'evt_checkout_1', eventType: 'checkout.session.completed' });
     expect(txCapture.inserts).toHaveLength(1);
     expect(txCapture.inserts[0].values).toMatchObject({
-      orgId: 'org_123',
+      orgId: '11111111-1111-4111-8111-111111111111',
       stripeCustomerId: 'cus_xyz',
       stripeSubscriptionId: 'sub_abc',
       priceId: 'price_pro',
@@ -257,11 +289,12 @@ describe('Stripe webhook — checkout.session.completed', () => {
 describe('Stripe webhook — customer.subscription.updated', () => {
   function updatedEvent(status: Stripe.Subscription.Status, priceId = 'price_pro'): Stripe.Event {
     return {
+      id: 'evt_updated_1',
       type: 'customer.subscription.updated',
       data: {
         object: {
           id: 'sub_abc',
-          metadata: { orgId: 'org_123' },
+          metadata: { orgId: '11111111-1111-4111-8111-111111111111' },
           status,
           trial_end: null,
           items: { data: [subItem(priceId, 1_800_000_000)] },
@@ -270,7 +303,7 @@ describe('Stripe webhook — customer.subscription.updated', () => {
     } as Stripe.Event;
   }
 
-  it('no-ops when orgId is missing', async () => {
+  it('no-ops when orgId is missing (Zod validation fails)', async () => {
     const evt = updatedEvent('active');
     (evt.data.object as Stripe.Subscription).metadata = {};
     constructEvent.mockReturnValue(evt);
@@ -284,6 +317,7 @@ describe('Stripe webhook — customer.subscription.updated', () => {
 
     expect(res.status).toBe(200);
     expect(transaction).toHaveBeenCalledTimes(1);
+    expect(idempotencyClaim).toHaveBeenCalledWith({ eventId: 'evt_updated_1', eventType: 'customer.subscription.updated' });
     expect(txCapture.updates).toHaveLength(2);
     expect(txCapture.updates[0].set).toMatchObject({ priceId: 'price_portfolio', status: 'active' });
     expect(txCapture.updates[1].set).toMatchObject({ subscriptionTier: 'portfolio' });
@@ -300,6 +334,16 @@ describe('Stripe webhook — customer.subscription.updated', () => {
     await POST(makeRequest('{}') as never);
     expect(txCapture.updates[1].set.subscriptionTier).toBe('free');
   });
+
+  it('returns duplicate flag when event was already processed', async () => {
+    constructEvent.mockReturnValue(updatedEvent('active'));
+    idempotencyClaim.mockResolvedValue([]);
+
+    const res = await POST(makeRequest('{}') as never);
+    const body = (await res.json()) as { received: boolean; duplicate?: boolean };
+    expect(body).toEqual({ received: true, duplicate: true });
+    expect(txCapture.updates).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -307,16 +351,24 @@ describe('Stripe webhook — customer.subscription.updated', () => {
 // ---------------------------------------------------------------------------
 
 describe('Stripe webhook — customer.subscription.deleted', () => {
-  it('cancels subscription and resets org tier to free', async () => {
-    constructEvent.mockReturnValue({
+  function deletedEvent(metadata: Record<string, string> = { orgId: '11111111-1111-4111-8111-111111111111' }): Stripe.Event {
+    return {
+      id: 'evt_deleted_1',
       type: 'customer.subscription.deleted',
       data: {
         object: {
           id: 'sub_abc',
-          metadata: { orgId: 'org_123' },
+          metadata,
+          status: 'canceled',
+          trial_end: null,
+          items: { data: [subItem('price_pro', 1_800_000_000)] },
         } as unknown as Stripe.Subscription,
       },
-    } as Stripe.Event);
+    } as Stripe.Event;
+  }
+
+  it('cancels subscription and resets org tier to free', async () => {
+    constructEvent.mockReturnValue(deletedEvent());
 
     const res = await POST(makeRequest('{}') as never);
 
@@ -327,11 +379,8 @@ describe('Stripe webhook — customer.subscription.deleted', () => {
     expect(txCapture.updates[1].set).toMatchObject({ subscriptionTier: 'free' });
   });
 
-  it('no-ops when orgId is missing', async () => {
-    constructEvent.mockReturnValue({
-      type: 'customer.subscription.deleted',
-      data: { object: { id: 'sub_abc', metadata: {} } as unknown as Stripe.Subscription },
-    } as Stripe.Event);
+  it('no-ops when orgId is missing (Zod validation fails)', async () => {
+    constructEvent.mockReturnValue(deletedEvent({}));
     await POST(makeRequest('{}') as never);
     expect(transaction).not.toHaveBeenCalled();
   });
@@ -344,6 +393,7 @@ describe('Stripe webhook — customer.subscription.deleted', () => {
 describe('Stripe webhook — invoice.payment_failed', () => {
   function invoiceEvent(subscriptionId: string | null): Stripe.Event {
     return {
+      id: 'evt_invoice_1',
       type: 'invoice.payment_failed',
       data: {
         object: {
@@ -357,32 +407,43 @@ describe('Stripe webhook — invoice.payment_failed', () => {
 
   it('marks subscription past_due and downgrades org to free', async () => {
     constructEvent.mockReturnValue(invoiceEvent('sub_abc'));
-    selectResult = [{ orgId: 'org_123' }];
+    selectInsideTxResult = [{ orgId: '11111111-1111-4111-8111-111111111111' }];
 
     const res = await POST(makeRequest('{}') as never);
 
     expect(res.status).toBe(200);
-    expect(nonTxUpdates).toHaveLength(2);
-    expect(nonTxUpdates[0].set).toMatchObject({ status: 'past_due' });
-    expect(nonTxUpdates[1].set).toMatchObject({ subscriptionTier: 'free' });
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(txCapture.updates).toHaveLength(2);
+    expect(txCapture.updates[0].set).toMatchObject({ status: 'past_due' });
+    expect(txCapture.updates[1].set).toMatchObject({ subscriptionTier: 'free' });
   });
 
   it('updates subscription status even when no matching org is found', async () => {
     constructEvent.mockReturnValue(invoiceEvent('sub_orphan'));
-    selectResult = [];
+    selectInsideTxResult = [];
 
     const res = await POST(makeRequest('{}') as never);
 
     expect(res.status).toBe(200);
-    expect(nonTxUpdates).toHaveLength(1);
-    expect(nonTxUpdates[0].set).toMatchObject({ status: 'past_due' });
+    expect(txCapture.updates).toHaveLength(1);
+    expect(txCapture.updates[0].set).toMatchObject({ status: 'past_due' });
   });
 
   it('no-ops when invoice has no subscription id', async () => {
     constructEvent.mockReturnValue(invoiceEvent(null));
     const res = await POST(makeRequest('{}') as never);
     expect(res.status).toBe(200);
-    expect(nonTxUpdates).toHaveLength(0);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('returns duplicate flag when event was already processed', async () => {
+    constructEvent.mockReturnValue(invoiceEvent('sub_abc'));
+    idempotencyClaim.mockResolvedValue([]);
+
+    const res = await POST(makeRequest('{}') as never);
+    const body = (await res.json()) as { received: boolean; duplicate?: boolean };
+    expect(body).toEqual({ received: true, duplicate: true });
+    expect(txCapture.updates).toHaveLength(0);
   });
 });
 
@@ -393,9 +454,16 @@ describe('Stripe webhook — invoice.payment_failed', () => {
 describe('Stripe webhook — error handling', () => {
   it('returns 500 when the handler throws after signature verification', async () => {
     constructEvent.mockReturnValue({
+      id: 'evt_err_1',
       type: 'customer.subscription.deleted',
       data: {
-        object: { id: 'sub_abc', metadata: { orgId: 'org_123' } } as unknown as Stripe.Subscription,
+        object: {
+          id: 'sub_abc',
+          metadata: { orgId: '11111111-1111-4111-8111-111111111111' },
+          status: 'canceled',
+          trial_end: null,
+          items: { data: [subItem('price_pro', 1_800_000_000)] },
+        } as unknown as Stripe.Subscription,
       },
     } as Stripe.Event);
     transaction.mockRejectedValueOnce(new Error('db connection lost'));

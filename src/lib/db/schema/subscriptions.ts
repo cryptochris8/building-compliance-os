@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, pgEnum, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { organizations } from './index';
 
@@ -26,7 +26,7 @@ export const subscriptions = pgTable('subscriptions', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => [
   index('idx_subscriptions_org_id').on(table.orgId),
-  index('idx_subscriptions_stripe_sub_id').on(table.stripeSubscriptionId),
+  uniqueIndex('uniq_subscriptions_stripe_sub_id').on(table.stripeSubscriptionId),
 ]);
 
 export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
@@ -35,3 +35,13 @@ export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
     references: [organizations.id],
   }),
 }));
+
+// Stripe webhook idempotency: every event Stripe delivers carries a unique
+// `event.id`. Stripe retries delivery on any non-2xx, so the same event.id can
+// arrive multiple times. We claim the event id inside the handler transaction
+// and refuse to re-run if the row already exists.
+export const processedStripeEvents = pgTable('processed_stripe_events', {
+  eventId: text('event_id').primaryKey(),
+  eventType: text('event_type').notNull(),
+  processedAt: timestamp('processed_at', { withTimezone: true }).defaultNow().notNull(),
+});

@@ -34,6 +34,9 @@ export default function NewReadingClient() {
         toast.error(result.error);
       } else {
         toast.success("Reading added successfully");
+        if (result.recalcFailed) {
+          toast.warning("Reading saved, but compliance recalculation failed. The summary may be stale until the next recalc.");
+        }
         router.push("/buildings/" + buildingId + "/readings");
       }
     } catch (err) {

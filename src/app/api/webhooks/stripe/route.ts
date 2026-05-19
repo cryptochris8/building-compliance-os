@@ -1,10 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { z } from 'zod';
 import { getStripe, tierFromPriceId } from '@/lib/stripe/client';
 import { db } from '@/lib/db';
-import { organizations, subscriptions } from '@/lib/db/schema';
+import { organizations, subscriptions, processedStripeEvents } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { webhookLimiter } from '@/lib/rate-limit';
+
+const checkoutSessionSchema = z.object({
+  metadata: z.object({ orgId: z.string().uuid() }).passthrough(),
+  subscription: z.union([z.string(), z.object({ id: z.string() })]).nullable().optional(),
+  customer: z.union([z.string(), z.object({ id: z.string() })]).nullable().optional(),
+});
+
+const subscriptionEventSchema = z.object({
+  id: z.string(),
+  metadata: z.object({ orgId: z.string().uuid() }).passthrough(),
+  status: z.string(),
+  trial_end: z.number().nullable().optional(),
+  items: z.object({
+    data: z.array(z.object({
+      price: z.object({ id: z.string() }).nullable().optional(),
+      current_period_end: z.number(),
+    })).min(1),
+  }),
+});
+
+const invoicePaymentFailedSchema = z.object({
+  parent: z.object({
+    subscription_details: z.object({
+      subscription: z.union([z.string(), z.object({ id: z.string() })]).nullable().optional(),
+    }).nullable().optional(),
+  }).nullable().optional(),
+});
 
 export async function POST(request: NextRequest) {
   const stripe = getStripe();
@@ -20,8 +48,9 @@ export async function POST(request: NextRequest) {
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-  } catch {
-    return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: `Webhook signature verification failed: ${message}` }, { status: 400 });
   }
 
   // Rate limit AFTER signature verification (only authenticated Stripe requests count)
@@ -31,37 +60,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
 
+  // Idempotency claim lives INSIDE each handler's transaction so that
+  // if side-effect writes throw, the claim rolls back with them and
+  // Stripe's retry can re-apply the changes. Claiming outside the tx
+  // would let a handler crash leave a "processed" marker for an event
+  // whose side effects never happened.
   try {
+    let duplicate = false;
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const orgId = session.metadata?.orgId;
-        if (!orgId) break;
+        const parsed = checkoutSessionSchema.safeParse(event.data.object);
+        if (!parsed.success) {
+          console.error('Stripe checkout.session.completed payload failed validation:', parsed.error.flatten());
+          break;
+        }
+        const session = parsed.data;
+        const orgId = session.metadata.orgId;
 
         const subscriptionId = typeof session.subscription === 'string'
           ? session.subscription
-          : session.subscription?.toString() ?? '';
+          : session.subscription?.id ?? '';
         const customerId = typeof session.customer === 'string'
           ? session.customer
-          : session.customer?.toString() ?? '';
+          : session.customer?.id ?? '';
 
-        // Guard against null/empty subscriptionId (one-time payments or Stripe nulls)
         if (!subscriptionId) break;
-
-        // Idempotency check: skip if this subscription was already processed
-        const [existingSub] = await db.select({ id: subscriptions.id })
-          .from(subscriptions)
-          .where(eq(subscriptions.stripeSubscriptionId, subscriptionId))
-          .limit(1);
-        if (existingSub) break;
 
         // Fetch the subscription to get price info
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
         const priceId = sub.items.data[0]?.price?.id ?? '';
         const tier = tierFromPriceId(priceId);
 
-        // Insert subscription + update org tier atomically
-        await db.transaction(async (tx) => {
+        duplicate = await db.transaction(async (tx) => {
+          const claimed = await tx.insert(processedStripeEvents)
+            .values({ eventId: event.id, eventType: event.type })
+            .onConflictDoNothing({ target: processedStripeEvents.eventId })
+            .returning({ eventId: processedStripeEvents.eventId });
+          if (claimed.length === 0) return true;
+
           await tx.insert(subscriptions).values({
             orgId,
             stripeCustomerId: customerId,
@@ -78,14 +114,20 @@ export async function POST(request: NextRequest) {
               stripeCustomerId: customerId,
             })
             .where(eq(organizations.id, orgId));
+
+          return false;
         });
         break;
       }
 
       case 'customer.subscription.updated': {
-        const sub = event.data.object as Stripe.Subscription;
-        const orgId = sub.metadata?.orgId;
-        if (!orgId) break;
+        const parsed = subscriptionEventSchema.safeParse(event.data.object);
+        if (!parsed.success) {
+          console.error('Stripe customer.subscription.updated payload failed validation:', parsed.error.flatten());
+          break;
+        }
+        const sub = parsed.data;
+        const orgId = sub.metadata.orgId;
 
         const priceId = sub.items.data[0]?.price?.id ?? '';
         const tier = tierFromPriceId(priceId);
@@ -101,7 +143,13 @@ export async function POST(request: NextRequest) {
         };
         const mappedStatus = statusMap[sub.status] ?? 'active';
 
-        await db.transaction(async (tx) => {
+        duplicate = await db.transaction(async (tx) => {
+          const claimed = await tx.insert(processedStripeEvents)
+            .values({ eventId: event.id, eventType: event.type })
+            .onConflictDoNothing({ target: processedStripeEvents.eventId })
+            .returning({ eventId: processedStripeEvents.eventId });
+          if (claimed.length === 0) return true;
+
           await tx.update(subscriptions)
             .set({
               priceId,
@@ -114,16 +162,28 @@ export async function POST(request: NextRequest) {
           await tx.update(organizations)
             .set({ subscriptionTier: tier === 'free' ? 'free' : tier })
             .where(eq(organizations.id, orgId));
+
+          return false;
         });
         break;
       }
 
       case 'customer.subscription.deleted': {
-        const sub = event.data.object as Stripe.Subscription;
-        const orgId = sub.metadata?.orgId;
-        if (!orgId) break;
+        const parsed = subscriptionEventSchema.safeParse(event.data.object);
+        if (!parsed.success) {
+          console.error('Stripe customer.subscription.deleted payload failed validation:', parsed.error.flatten());
+          break;
+        }
+        const sub = parsed.data;
+        const orgId = sub.metadata.orgId;
 
-        await db.transaction(async (tx) => {
+        duplicate = await db.transaction(async (tx) => {
+          const claimed = await tx.insert(processedStripeEvents)
+            .values({ eventId: event.id, eventType: event.type })
+            .onConflictDoNothing({ target: processedStripeEvents.eventId })
+            .returning({ eventId: processedStripeEvents.eventId });
+          if (claimed.length === 0) return true;
+
           await tx.update(subscriptions)
             .set({ status: 'canceled' })
             .where(eq(subscriptions.stripeSubscriptionId, sub.id));
@@ -131,41 +191,57 @@ export async function POST(request: NextRequest) {
           await tx.update(organizations)
             .set({ subscriptionTier: 'free' })
             .where(eq(organizations.id, orgId));
+
+          return false;
         });
         break;
       }
 
       case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice;
-        // In Stripe v20+, subscription info is in invoice.parent
-        const subDetails = invoice.parent?.subscription_details;
-        const subscriptionId = subDetails?.subscription?.toString();
+        const parsed = invoicePaymentFailedSchema.safeParse(event.data.object);
+        if (!parsed.success) {
+          console.error('Stripe invoice.payment_failed payload failed validation:', parsed.error.flatten());
+          break;
+        }
+        const subRef = parsed.data.parent?.subscription_details?.subscription;
+        const subscriptionId = typeof subRef === 'string' ? subRef : subRef?.id;
 
-        if (subscriptionId) {
-          // Find the org associated with this subscription and downgrade
-          const [sub] = await db.select({ orgId: subscriptions.orgId })
+        if (!subscriptionId) break;
+
+        duplicate = await db.transaction(async (tx) => {
+          const claimed = await tx.insert(processedStripeEvents)
+            .values({ eventId: event.id, eventType: event.type })
+            .onConflictDoNothing({ target: processedStripeEvents.eventId })
+            .returning({ eventId: processedStripeEvents.eventId });
+          if (claimed.length === 0) return true;
+
+          const [sub] = await tx.select({ orgId: subscriptions.orgId })
             .from(subscriptions)
             .where(eq(subscriptions.stripeSubscriptionId, subscriptionId))
             .limit(1);
 
-          await db.update(subscriptions)
+          await tx.update(subscriptions)
             .set({ status: 'past_due' })
             .where(eq(subscriptions.stripeSubscriptionId, subscriptionId));
 
           if (sub?.orgId) {
-            await db.update(organizations)
+            await tx.update(organizations)
               .set({ subscriptionTier: 'free' })
               .where(eq(organizations.id, sub.orgId));
           }
-        }
+          return false;
+        });
         break;
       }
 
       default:
-        // Unhandled event type - no action needed
+        // Unhandled event type — no claim, no side effects.
         break;
     }
 
+    if (duplicate) {
+      return NextResponse.json({ received: true, duplicate: true });
+    }
     return NextResponse.json({ received: true });
   } catch (err) {
     console.error('Webhook handler error:', err instanceof Error ? err.message : err);

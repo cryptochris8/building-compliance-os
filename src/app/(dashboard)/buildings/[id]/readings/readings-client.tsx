@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { ReadingChart } from "@/components/readings/reading-chart";
 import { deleteReading } from "@/app/actions/readings";
 import { normalizeToKbtu } from "@/lib/utils/unit-conversion";
@@ -110,7 +111,14 @@ export function ReadingsPageClient({
     showConfirm({
       title: "Delete Reading",
       description: "Are you sure you want to delete this reading? This action cannot be undone.",
-      onConfirm: () => deleteReading(readingId, buildingId),
+      onConfirm: async () => {
+        const result = await deleteReading(readingId, buildingId);
+        if (result.error) {
+          toast.error(result.error);
+        } else if (result.recalcFailed) {
+          toast.warning("Reading deleted, but compliance recalculation failed. The summary may be stale until the next recalc.");
+        }
+      },
     });
   };
 
