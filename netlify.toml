@@ -1,0 +1,42 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--legacy-peer-deps=false"
+
+# The official Netlify Next.js Runtime adapter. Handles SSR, server actions,
+# API routes, middleware (as Edge Functions), ISR, and image optimization.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Stripe and Inngest webhooks plus PDF generation benefit from longer timeouts.
+# Netlify Functions default to 10s on Free, 26s on Pro. Background Functions
+# allow up to 15 min for long-running work like CSV imports.
+[functions]
+  node_bundler = "esbuild"
+
+# Per-route function timeout overrides (Netlify Pro plan or higher required for
+# values above 10s). Adjust if you're on the Free plan or need different limits.
+[functions."api/webhooks/stripe"]
+  # Stripe gives us 5s to respond before retrying — keep this short.
+  # The webhook handler must be fast; heavy work belongs in Inngest.
+
+[functions."api/reports/*"]
+  # PDF generation can take longer for buildings with many readings.
+  # Set timeout = 26 in Netlify UI if needed (Pro plan).
+
+# Long-running jobs (CSV import) should already be handled by Inngest, not
+# Netlify Functions. If you ever need to push a route to a Background Function,
+# rename the file to *-background.ts (Netlify convention).
+
+# Useful for previewing branches: each non-main branch gets its own URL.
+[context.production]
+  environment = { NEXT_PUBLIC_APP_ENV = "production" }
+
+[context.deploy-preview]
+  environment = { NEXT_PUBLIC_APP_ENV = "preview" }
+
+[context.branch-deploy]
+  environment = { NEXT_PUBLIC_APP_ENV = "preview" }
