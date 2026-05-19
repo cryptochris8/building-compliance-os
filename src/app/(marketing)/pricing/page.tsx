@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 
 const tiers = [
   { name: "Free", monthlyPrice: "$0", annualPrice: "$0", description: "Get started with one building", cta: "Start Free", highlighted: false },
-  { name: "Pro", monthlyPrice: "$149", annualPrice: "$99", description: "For building owners and managers", cta: "Start 14-Day Trial", highlighted: true },
-  { name: "Portfolio", monthlyPrice: "$499", annualPrice: "$399", description: "For large portfolios", cta: "Start 14-Day Trial", highlighted: false },
+  { name: "Pro", monthlyPrice: "$149", annualPrice: "$99", description: "For building owners and managers", cta: "Start 30-Day Trial", highlighted: true },
+  { name: "Portfolio", monthlyPrice: "$499", annualPrice: "$399", description: "For large portfolios", cta: "Start 30-Day Trial", highlighted: false },
 ];
 
 interface FeatureRow { feature: string; free: string | boolean; pro: string | boolean; portfolio: string | boolean; }
@@ -39,7 +39,7 @@ export default function PricingPage() {
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold tracking-tight">Simple, Transparent Pricing</h1>
-          <p className="mt-3 text-lg text-muted-foreground max-w-xl mx-auto">Start free. Upgrade when you need to. All paid plans include a 14-day free trial.</p>
+          <p className="mt-3 text-lg text-muted-foreground max-w-xl mx-auto">Start free. Upgrade when you need to. All paid plans include a 30-day free trial.</p>
         </div>
         <div className="grid gap-6 md:grid-cols-3 max-w-5xl mx-auto mb-16">
           {tiers.map((tier) => (

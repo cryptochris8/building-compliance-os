@@ -24,7 +24,7 @@ const tiers = [
     period: "/month",
     description: "For building owners and managers",
     features: ["Up to 10 buildings", "CSV upload", "Report generation", "Portfolio Manager sync", "Email support"],
-    cta: "Start 14-Day Trial",
+    cta: "Start 30-Day Trial",
     highlighted: true,
   },
   {
@@ -33,7 +33,7 @@ const tiers = [
     period: "/month",
     description: "For large portfolios",
     features: ["Up to 50 buildings", "Everything in Pro", "Bulk operations", "Priority support", "Custom reports"],
-    cta: "Start 14-Day Trial",
+    cta: "Start 30-Day Trial",
     highlighted: false,
   },
 ];

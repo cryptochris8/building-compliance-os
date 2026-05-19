@@ -108,7 +108,11 @@ export async function createCheckoutSession(
     success_url: `${baseUrl}/settings?billing=success`,
     cancel_url: `${baseUrl}/settings?billing=cancelled`,
     subscription_data: {
-      trial_period_days: 14,
+      // 30-day trial: long enough for a real customer to upload historical
+      // data, sync Portfolio Manager, and validate emissions before paying.
+      // Safe from the "subscribe → file → cancel" abuse pattern because the
+      // generated PDF is watermarked during trial (see getReportWatermark).
+      trial_period_days: 30,
       metadata: { orgId },
     },
     metadata: { orgId },
