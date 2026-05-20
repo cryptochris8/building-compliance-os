@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, FileText, Trash2, Download, Image as ImageIcon, Eye } from "lucide-react";
 import { DocumentUpload } from "@/components/documents/document-upload";
-import { deleteDocument } from "@/app/actions/documents";
+import { deleteDocument, getDocumentDownloadUrl } from "@/app/actions/documents";
 
 interface DocumentRecord {
   id: string;
@@ -55,11 +56,13 @@ function isImageFile(fileType: string): boolean {
 
 export default function DocumentsClient({ documents: initialDocuments }: { documents: DocumentRecord[] }) {
   const params = useParams();
+  const router = useRouter();
   const buildingId = params.id as string;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [yearFilter, setYearFilter] = useState<string>("all");
   const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const documents = initialDocuments;
 
   const filtered = useMemo(() => {
@@ -95,8 +98,41 @@ export default function DocumentsClient({ documents: initialDocuments }: { docum
     showConfirm({
       title: "Delete Document",
       description: "Are you sure you want to delete this document? This action cannot be undone.",
-      onConfirm: () => deleteDocument(docId, buildingId),
+      onConfirm: async () => {
+        const result = await deleteDocument(docId, buildingId);
+        if (result.error) {
+          toast.error(result.error);
+        } else {
+          toast.success("Document deleted");
+          router.refresh();
+        }
+      },
     });
+  };
+
+  const handleDownload = async (doc: DocumentRecord) => {
+    const result = await getDocumentDownloadUrl(doc.id, buildingId);
+    if (result.error || !result.url) {
+      toast.error(result.error || "Could not download document");
+      return;
+    }
+    window.open(result.url, "_blank");
+  };
+
+  const openPreview = async (doc: DocumentRecord) => {
+    setPreviewDoc(doc);
+    setPreviewUrl(null);
+    const result = await getDocumentDownloadUrl(doc.id, buildingId);
+    if (result.error || !result.url) {
+      toast.error(result.error || "Could not load preview");
+      return;
+    }
+    setPreviewUrl(result.url);
+  };
+
+  const closePreview = () => {
+    setPreviewDoc(null);
+    setPreviewUrl(null);
   };
 
   return (
@@ -202,14 +238,12 @@ export default function DocumentsClient({ documents: initialDocuments }: { docum
                     <TableCell>
                       <div className="flex gap-1">
                         {isImageFile(doc.fileType) && (
-                          <Button variant="ghost" size="icon" onClick={() => setPreviewDoc(doc)} aria-label={"Preview " + doc.fileName}>
+                          <Button variant="ghost" size="icon" onClick={() => openPreview(doc)} aria-label={"Preview " + doc.fileName}>
                             <Eye className="h-4 w-4" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" asChild>
-                          <a href={"#download-" + doc.id} title="Download" aria-label={"Download " + doc.fileName}>
-                            <Download className="h-4 w-4" />
-                          </a>
+                        <Button variant="ghost" size="icon" onClick={() => handleDownload(doc)} aria-label={"Download " + doc.fileName}>
+                          <Download className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(doc.id)} aria-label={"Delete " + doc.fileName}>
                           <Trash2 className="h-4 w-4" />
@@ -226,15 +260,22 @@ export default function DocumentsClient({ documents: initialDocuments }: { docum
 
       {/* Image Preview Dialog */}
       {previewDoc && (
-        <Dialog open={!!previewDoc} onOpenChange={() => setPreviewDoc(null)}>
+        <Dialog open={!!previewDoc} onOpenChange={(open) => { if (!open) closePreview(); }}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>{previewDoc.fileName}</DialogTitle>
             </DialogHeader>
-            <div className="flex items-center justify-center p-4 bg-muted rounded">
-              <p className="text-sm text-muted-foreground">
-                Image preview would appear here (requires Supabase Storage integration)
-              </p>
+            <div className="flex items-center justify-center p-4 bg-muted rounded min-h-[200px]">
+              {previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={previewUrl}
+                  alt={previewDoc.fileName}
+                  className="max-h-[60vh] max-w-full rounded"
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">Loading preview…</p>
+              )}
             </div>
           </DialogContent>
         </Dialog>

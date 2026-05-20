@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,8 @@ const STEPS = [
   { title: "Done!", icon: PartyPopper },
 ];
 
+const STORAGE_KEY = "onboarding-progress";
+
 export function OnboardingSteps() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -41,6 +43,48 @@ export function OnboardingSteps() {
   // Utility data
   const [monthlyElec, setMonthlyElec] = useState("");
   const [monthlyGas, setMonthlyGas] = useState("");
+
+  const [hydrated, setHydrated] = useState(false);
+
+  // Restore an in-progress onboarding draft after a refresh / navigation away.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (typeof s.step === "number" && s.step >= 1 && s.step <= 4) setStep(s.step);
+        if (s.buildingName) setBuildingName(s.buildingName);
+        if (s.address) setAddress(s.address);
+        if (s.city) setCity(s.city);
+        if (s.state) setState(s.state);
+        if (s.zip) setZip(s.zip);
+        if (s.sqft) setSqft(s.sqft);
+        if (s.occupancyType) setOccupancyType(s.occupancyType);
+        if (s.monthlyElec) setMonthlyElec(s.monthlyElec);
+        if (s.monthlyGas) setMonthlyGas(s.monthlyGas);
+      }
+    } catch {
+      // Corrupt or unavailable storage — start fresh.
+    }
+    setHydrated(true);
+  }, []);
+
+  // Persist progress so a mid-flow refresh doesn't discard entered data.
+  // The draft is cleared once setup completes (step 5).
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      if (step >= 5) {
+        localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        step, buildingName, address, city, state, zip, sqft, occupancyType, monthlyElec, monthlyGas,
+      }));
+    } catch {
+      // Ignore quota / unavailable storage.
+    }
+  }, [hydrated, step, buildingName, address, city, state, zip, sqft, occupancyType, monthlyElec, monthlyGas]);
 
   const pct = ((step - 1) / (STEPS.length - 1)) * 100;
   const prev = () => setStep((s) => Math.max(s - 1, 1));

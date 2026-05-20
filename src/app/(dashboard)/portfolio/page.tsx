@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import BulkReportGenerator from "@/components/compliance/bulk-report-generator";
 
 export default function PortfolioPage() {
   return (
@@ -6,19 +6,10 @@ export default function PortfolioPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
         <p className="text-muted-foreground">
-          Generate and download compliance reports.
+          Generate and download compliance reports across your portfolio.
         </p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Available Reports</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Reports will be available once building data has been entered.
-          </p>
-        </CardContent>
-      </Card>
+      <BulkReportGenerator />
     </div>
   );
 }

@@ -72,6 +72,40 @@ export async function uploadDocument(formData: DocumentFormValues) {
 }
 
 // ============================================================
+// Get a short-lived signed URL for downloading / previewing a document
+// ============================================================
+
+export async function getDocumentDownloadUrl(id: string, buildingId: string) {
+  const user = await getAuthUser();
+  if (!user) {
+    return { error: 'Unauthorized' };
+  }
+
+  // Read access is enough to download — no WRITE_ROLES requirement.
+  const access = await assertBuildingAccess(buildingId);
+  if (!access) return { error: 'Building not found or access denied' };
+
+  const [doc] = await db
+    .select({ filePath: documents.filePath })
+    .from(documents)
+    .where(and(eq(documents.id, id), eq(documents.buildingId, buildingId)));
+  if (!doc?.filePath) return { error: 'Document not found or access denied' };
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(doc.filePath, 300);
+    if (error || !data?.signedUrl) {
+      return { error: 'Could not generate download link' };
+    }
+    return { success: true, url: data.signedUrl };
+  } catch (error) {
+    return { error: sanitizeErrorMessage(error, 'Could not generate download link') };
+  }
+}
+
+// ============================================================
 // Delete Document
 // ============================================================
 
