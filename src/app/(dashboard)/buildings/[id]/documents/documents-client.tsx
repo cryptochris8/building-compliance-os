@@ -136,7 +136,7 @@ export default function DocumentsClient({ documents: initialDocuments }: { docum
       {/* Filters */}
       <div className="flex gap-3">
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Document type" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]" aria-label="Filter by document type"><SelectValue placeholder="Document type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
             <SelectItem value="utility_bill">Utility Bill</SelectItem>
@@ -146,7 +146,7 @@ export default function DocumentsClient({ documents: initialDocuments }: { docum
           </SelectContent>
         </Select>
         <Select value={yearFilter} onValueChange={setYearFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Compliance year" /></SelectTrigger>
+          <SelectTrigger className="w-[160px]" aria-label="Filter by compliance year"><SelectValue placeholder="Compliance year" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Years</SelectItem>
             {uniqueYears.map((y) => (
@@ -172,7 +172,7 @@ export default function DocumentsClient({ documents: initialDocuments }: { docum
                 <TableHead>Year</TableHead>
                 <TableHead>Size</TableHead>
                 <TableHead>Upload Date</TableHead>
-                <TableHead></TableHead>
+                <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -202,16 +202,16 @@ export default function DocumentsClient({ documents: initialDocuments }: { docum
                     <TableCell>
                       <div className="flex gap-1">
                         {isImageFile(doc.fileType) && (
-                          <Button variant="ghost" size="icon" onClick={() => setPreviewDoc(doc)}>
+                          <Button variant="ghost" size="icon" onClick={() => setPreviewDoc(doc)} aria-label={"Preview " + doc.fileName}>
                             <Eye className="h-4 w-4" />
                           </Button>
                         )}
                         <Button variant="ghost" size="icon" asChild>
-                          <a href={"#download-" + doc.id} title="Download">
+                          <a href={"#download-" + doc.id} title="Download" aria-label={"Download " + doc.fileName}>
                             <Download className="h-4 w-4" />
                           </a>
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(doc.id)}>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(doc.id)} aria-label={"Delete " + doc.fileName}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

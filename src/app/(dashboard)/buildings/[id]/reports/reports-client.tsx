@@ -80,6 +80,7 @@ export default function ReportsClient() {
         <div className="flex items-center gap-3">
           <select
             className="border rounded px-3 py-2 text-sm"
+            aria-label="Report year"
             value={selectedYear}
             onChange={(e) => setSelectedYear(parseInt(e.target.value))}
           >

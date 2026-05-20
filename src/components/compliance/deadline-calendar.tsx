@@ -24,6 +24,14 @@ function getStatusDot(status: string, submitted: boolean): string {
   return "bg-gray-400";
 }
 
+function getStatusLabel(status: string, submitted: boolean): string {
+  if (submitted) return "Submitted";
+  if (status === "over_limit") return "Over limit";
+  if (status === "at_risk") return "At risk";
+  if (status === "compliant") return "Compliant";
+  return "Incomplete";
+}
+
 export function DeadlineCalendarView({ deadlines }: { deadlines: Deadline[] }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const currentYear = currentDate.getFullYear();
@@ -59,11 +67,11 @@ export function DeadlineCalendarView({ deadlines }: { deadlines: Deadline[] }) {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={prevMonth}>
+          <Button variant="ghost" size="icon" onClick={prevMonth} aria-label="Previous month">
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <CardTitle>{monthNames[currentMonth]} {currentYear}</CardTitle>
-          <Button variant="ghost" size="icon" onClick={nextMonth}>
+          <Button variant="ghost" size="icon" onClick={nextMonth} aria-label="Next month">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -84,7 +92,8 @@ export function DeadlineCalendarView({ deadlines }: { deadlines: Deadline[] }) {
                       href={"/buildings/" + d.buildingId + "/compliance?year=" + d.year}
                       className="block text-xs truncate hover:underline mb-0.5"
                     >
-                      <span className={"inline-block w-2 h-2 rounded-full mr-1 " + getStatusDot(d.status, d.reportSubmitted)} />
+                      <span aria-hidden="true" className={"inline-block w-2 h-2 rounded-full mr-1 " + getStatusDot(d.status, d.reportSubmitted)} />
+                      <span className="sr-only">{getStatusLabel(d.status, d.reportSubmitted)}: </span>
                       {d.buildingName}
                     </Link>
                   ))}

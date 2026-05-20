@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/table';
 import { Users, Mail, X, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
+import { ConfirmDialog, useConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   inviteMember,
   cancelInvitation,
@@ -70,6 +71,7 @@ export function OrgMembers({
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<string>('member');
   const [isPending, startTransition] = useTransition();
+  const [confirmProps, showConfirm] = useConfirmDialog();
 
   const isOwner = currentUserRole === 'owner';
   const isAdmin = currentUserRole === 'admin' || isOwner;
@@ -119,16 +121,19 @@ export function OrgMembers({
   }
 
   function handleRemoveMember(userId: string, name: string) {
-    if (!confirm(`Remove ${name} from the organization?`)) return;
-
-    startTransition(async () => {
-      const result = await removeMember(userId);
-      if (result.error) {
-        toast.error(result.error);
-      } else {
-        toast.success('Member removed');
-        setMembers(prev => prev.filter(m => m.id !== userId));
-      }
+    showConfirm({
+      title: 'Remove Member',
+      description: `Remove ${name} from the organization? They will lose all access.`,
+      confirmLabel: 'Remove',
+      onConfirm: async () => {
+        const result = await removeMember(userId);
+        if (result.error) {
+          toast.error(result.error);
+        } else {
+          toast.success('Member removed');
+          setMembers(prev => prev.filter(m => m.id !== userId));
+        }
+      },
     });
   }
 
@@ -285,6 +290,7 @@ export function OrgMembers({
           </TableBody>
         </Table>
       </CardContent>
+      <ConfirmDialog {...confirmProps} />
     </Card>
   );
 }

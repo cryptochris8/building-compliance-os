@@ -91,7 +91,7 @@ export function OccupancyMixEditor({ grossSqft, initialMix, onSave }: OccupancyM
               placeholder="sqft"
             />
             {mix.length > 1 && (
-              <Button variant="ghost" size="icon" onClick={() => removeEntry(i)}>
+              <Button variant="ghost" size="icon" onClick={() => removeEntry(i)} aria-label="Remove occupancy type">
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}

@@ -87,7 +87,7 @@ export function DeductionsClient({
         </div>
         <div className="flex items-center gap-3">
           <Select value={String(selectedYear)} onValueChange={handleYearChange}>
-            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[140px]" aria-label="Compliance year"><SelectValue /></SelectTrigger>
             <SelectContent>
               {availableYears.map((y) => (
                 <SelectItem key={y} value={String(y)}>{y}</SelectItem>
@@ -162,7 +162,7 @@ export function DeductionsClient({
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Amount (tCO2e)</TableHead>
                 <TableHead>Verified</TableHead>
-                <TableHead></TableHead>
+                <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -185,7 +185,7 @@ export function DeductionsClient({
                     </TableCell>
                     <TableCell>
                       {!locked && (
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)} aria-label={"Delete " + (TYPE_LABELS[d.deductionType] || d.deductionType) + " deduction"}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}

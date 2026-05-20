@@ -174,7 +174,7 @@ export function DocumentUpload({ buildingId, onUploadComplete }: DocumentUploadP
                 </p>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setFile(null)}>
+            <Button variant="ghost" size="icon" onClick={() => setFile(null)} aria-label="Remove selected file">
               <X className="h-4 w-4" />
             </Button>
           </CardContent>

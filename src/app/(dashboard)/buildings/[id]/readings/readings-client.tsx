@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -66,6 +67,7 @@ export function ReadingsPageClient({
   buildingId: string;
   readings: ReadingData[];
 }) {
+  const router = useRouter();
   const [filterType, setFilterType] = useState<string>("all");
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -115,9 +117,14 @@ export function ReadingsPageClient({
         const result = await deleteReading(readingId, buildingId);
         if (result.error) {
           toast.error(result.error);
-        } else if (result.recalcFailed) {
-          toast.warning("Reading deleted, but compliance recalculation failed. The summary may be stale until the next recalc.");
+          return;
         }
+        if (result.recalcFailed) {
+          toast.warning("Reading deleted, but compliance recalculation failed. The summary may be stale until the next recalc.");
+        } else {
+          toast.success("Reading deleted");
+        }
+        router.refresh();
       },
     });
   };
@@ -154,7 +161,7 @@ export function ReadingsPageClient({
 
       <div className="flex items-center gap-4">
         <Select value={filterType} onValueChange={(v) => { setFilterType(v); setPage(1); }}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-[200px]" aria-label="Filter by utility type">
             <SelectValue placeholder="Filter by type" />
           </SelectTrigger>
           <SelectContent>
@@ -182,7 +189,7 @@ export function ReadingsPageClient({
                 <TableHead>Cost</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Confidence</TableHead>
-                <TableHead></TableHead>
+                <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -208,7 +215,7 @@ export function ReadingsPageClient({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(reading.id)}>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(reading.id)} aria-label={"Delete reading for " + formatDate(reading.periodStart)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>

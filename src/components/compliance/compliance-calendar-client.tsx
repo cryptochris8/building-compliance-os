@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { Calendar, List, CheckSquare, RefreshCw, Lock } from "lucide-react";
+import { toast } from "sonner";
 import { bulkMarkSubmitted, bulkRecalculate } from "@/app/actions/compliance-workflow";
 import { DeadlineCalendarView } from "./deadline-calendar";
 
@@ -107,9 +108,23 @@ export function ComplianceCalendarClient({ deadlines }: { deadlines: ComplianceD
     const buildingIds = Array.from(selectedIds).map((key) => key.split(":")[0]);
     const year = Number(Array.from(selectedIds)[0]?.split(":")[1] || new Date().getFullYear());
     try {
-      if (bulkAction === "submit") await bulkMarkSubmitted(buildingIds, year);
-      else if (bulkAction === "recalculate") await bulkRecalculate(buildingIds, year);
-    } catch (e) { console.error(e); }
+      const result = bulkAction === "submit"
+        ? await bulkMarkSubmitted(buildingIds, year)
+        : await bulkRecalculate(buildingIds, year);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        const n = result.successCount ?? 0;
+        toast.success(
+          bulkAction === "submit"
+            ? n + " building(s) marked as submitted"
+            : "Recalculated " + n + " building(s)"
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Bulk action failed. Please try again.");
+    }
     setBulkProcessing(false);
     setBulkDialogOpen(false);
     setSelectedIds(new Set());
@@ -127,7 +142,7 @@ export function ComplianceCalendarClient({ deadlines }: { deadlines: ComplianceD
           </Button>
         </div>
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Filter status" /></SelectTrigger>
+          <SelectTrigger className="w-[160px]" aria-label="Filter by status"><SelectValue placeholder="Filter status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
             <SelectItem value="overdue">Overdue</SelectItem>
@@ -191,7 +206,7 @@ export function ComplianceCalendarClient({ deadlines }: { deadlines: ComplianceD
                   <TableHead className="cursor-pointer select-none" onClick={() => handleSort("daysUntilDue")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort("daysUntilDue"); } }} tabIndex={0} role="columnheader" aria-sort={sortField === "daysUntilDue" ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                     Days Until Due {sortField === "daysUntilDue" ? (sortAsc ? "^" : "v") : ""}
                   </TableHead>
-                  <TableHead></TableHead>
+                  <TableHead><span className="sr-only">Status badge</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
