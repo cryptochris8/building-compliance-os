@@ -144,7 +144,7 @@ export function PortfolioDashboardClient({ summary, year }: PortfolioDashboardCl
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Portfolio Dashboard</h2>
+        <h1 className="text-3xl font-bold tracking-tight">Portfolio Dashboard</h1>
         <p className="text-muted-foreground">
           Overview of your building compliance performance for {year}
         </p>

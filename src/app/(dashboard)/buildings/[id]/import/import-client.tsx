@@ -138,7 +138,7 @@ export default function ImportClient() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Import Utility Data</h2>
+          <h1 className="text-3xl font-bold tracking-tight">Import Utility Data</h1>
           <p className="text-muted-foreground">
             Upload a CSV file to bulk import utility readings.
           </p>

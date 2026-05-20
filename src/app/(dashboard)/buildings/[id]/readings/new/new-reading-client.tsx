@@ -48,13 +48,21 @@ export default function NewReadingClient() {
   };
 
   if (loading) {
-    return <div className="py-10 text-center text-muted-foreground">Loading utility accounts...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="h-9 w-64 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-80 animate-pulse rounded bg-muted" />
+        </div>
+        <div className="h-96 w-full animate-pulse rounded-lg bg-muted" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Add Utility Reading</h2>
+        <h1 className="text-3xl font-bold tracking-tight">Add Utility Reading</h1>
         <p className="text-muted-foreground">
           Manually enter a utility reading for this building.
         </p>
@@ -66,6 +74,7 @@ export default function NewReadingClient() {
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
         mode="create"
+        onCancel={() => router.push("/buildings/" + buildingId + "/readings")}
       />
     </div>
   );

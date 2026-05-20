@@ -37,6 +37,7 @@ interface ReadingFormProps {
   onSubmit: (values: ReadingFormValues) => Promise<void>;
   isSubmitting?: boolean;
   mode?: "create" | "edit";
+  onCancel?: () => void;
 }
 
 const MONTHS = [
@@ -74,6 +75,7 @@ export function ReadingForm({
   onSubmit,
   isSubmitting = false,
   mode = "create",
+  onCancel,
 }: ReadingFormProps) {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
@@ -275,7 +277,7 @@ export function ReadingForm({
         </Card>
 
         <div className="flex justify-end gap-4">
-          <Button type="button" variant="outline" onClick={() => window.history.back()}>
+          <Button type="button" variant="outline" onClick={onCancel ?? (() => window.history.back())}>
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>

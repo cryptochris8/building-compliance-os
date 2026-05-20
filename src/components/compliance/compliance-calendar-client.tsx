@@ -17,6 +17,8 @@ import {
 import { Calendar, List, CheckSquare, RefreshCw, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { bulkMarkSubmitted, bulkRecalculate } from "@/app/actions/compliance-workflow";
+import { ComplianceStatusBadge } from "@/components/ui/compliance-status-badge";
+import type { ComplianceStatus } from "@/types";
 import { DeadlineCalendarView } from "./deadline-calendar";
 
 interface ComplianceDeadlineRow {
@@ -34,13 +36,6 @@ interface ComplianceDeadlineRow {
 
 type StatusFilter = "all" | "overdue" | "upcoming" | "submitted";
 type ViewMode = "list" | "calendar";
-
-const STATUS_COLORS: Record<string, string> = {
-  compliant: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300",
-  at_risk: "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300",
-  over_limit: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
-  incomplete: "bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-300",
-};
 
 function getUrgencyColor(days: number, submitted: boolean): string {
   if (submitted) return "text-green-600 dark:text-green-400";
@@ -233,9 +228,7 @@ export function ComplianceCalendarClient({ deadlines }: { deadlines: ComplianceD
                         <TableCell>{d.jurisdictionName}</TableCell>
                         <TableCell>{d.reportDueDate} ({d.year})</TableCell>
                         <TableCell>
-                          <Badge className={STATUS_COLORS[d.status] || STATUS_COLORS.incomplete}>
-                            {d.status.replace("_", " ").toUpperCase()}
-                          </Badge>
+                          <ComplianceStatusBadge status={d.status as ComplianceStatus} />
                         </TableCell>
                         <TableCell>
                           <span className={getUrgencyColor(d.daysUntilDue, d.reportSubmitted)}>

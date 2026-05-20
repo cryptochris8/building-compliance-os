@@ -82,7 +82,7 @@ export function DeductionsClient({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Deductions</h2>
+          <h1 className="text-3xl font-bold tracking-tight">Deductions</h1>
           <p className="text-muted-foreground">{buildingName} - {selectedYear}</p>
         </div>
         <div className="flex items-center gap-3">

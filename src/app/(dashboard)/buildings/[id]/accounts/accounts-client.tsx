@@ -143,14 +143,22 @@ export default function AccountsClient() {
   };
 
   if (loading) {
-    return <div className="py-10 text-center text-muted-foreground">Loading utility accounts...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="h-9 w-56 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-72 animate-pulse rounded bg-muted" />
+        </div>
+        <div className="h-64 w-full animate-pulse rounded-lg bg-muted" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Utility Accounts</h2>
+          <h1 className="text-3xl font-bold tracking-tight">Utility Accounts</h1>
           <p className="text-muted-foreground">
             Manage utility meter accounts for this building. Each account represents a meter or utility service.
           </p>
