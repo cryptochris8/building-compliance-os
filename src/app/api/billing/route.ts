@@ -4,13 +4,17 @@ import {
   createCheckoutSession,
   createPortalSession,
   getSubscription,
+  PLAN_CONFIGS,
 } from '@/lib/stripe/client';
 import { apiLimiter } from '@/lib/rate-limit';
 import { getAuthContextWithBilling } from '@/lib/auth/helpers';
 import { apiSuccess, ApiErrors } from '@/lib/api/response';
 
+// The client sends a tier name; the price ID is resolved server-side from
+// PLAN_CONFIGS. This keeps Stripe price IDs out of client code entirely —
+// the server's STRIPE_*_PRICE_ID env vars are the single source of truth.
 const checkoutSchema = z.object({
-  priceId: z.string().min(1, 'priceId is required'),
+  tier: z.enum(['pro', 'portfolio']),
 });
 
 // POST: Create checkout session
@@ -27,8 +31,9 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return ApiErrors.badRequest(parsed.error.issues[0]?.message || 'Invalid request body');
     }
-    const { priceId } = parsed.data;
+    const { tier } = parsed.data;
 
+    const priceId = PLAN_CONFIGS[tier].stripePriceIdMonthly;
     const url = await createCheckoutSession(auth.orgId, priceId, auth.email);
     return apiSuccess({ url });
   } catch (err) {

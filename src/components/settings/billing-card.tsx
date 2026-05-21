@@ -30,7 +30,6 @@ const TIERS = [
     monthlyPrice: 0,
     annualMonthlyPrice: 0,
     features: ['1 building', 'Manual data entry', 'Basic compliance status'],
-    priceIdMonthly: '',
   },
   {
     tier: 'pro',
@@ -44,7 +43,6 @@ const TIERS = [
       'Portfolio Manager sync',
       'Email support',
     ],
-    priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID ?? 'price_pro_monthly',
   },
   {
     tier: 'portfolio',
@@ -58,7 +56,6 @@ const TIERS = [
       'Priority support',
       'Custom reports',
     ],
-    priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PORTFOLIO_MONTHLY_PRICE_ID ?? 'price_portfolio_monthly',
   },
 ];
 
@@ -85,14 +82,14 @@ export function BillingCard({
   const usagePercent =
     buildingLimit > 0 ? Math.min(100, (buildingCount / buildingLimit) * 100) : 0;
 
-  async function handleSubscribe(priceId: string) {
-    setLoading(priceId);
+  async function handleSubscribe(tier: string) {
+    setLoading(tier);
     setError(null);
     try {
       const res = await fetch('/api/billing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify({ tier }),
       });
       const body = await res.json();
       if (body.data?.url) {
@@ -223,14 +220,14 @@ export function BillingCard({
                       </li>
                     ))}
                   </ul>
-                  {!isCurrent && tier.priceIdMonthly && (
+                  {!isCurrent && tier.tier !== 'free' && (
                     <Button
                       className="w-full"
-                      onClick={() => handleSubscribe(tier.priceIdMonthly)}
-                      disabled={loading === tier.priceIdMonthly}
+                      onClick={() => handleSubscribe(tier.tier)}
+                      disabled={loading === tier.tier}
                     >
                       <Zap className="mr-2 h-4 w-4" />
-                      {loading === tier.priceIdMonthly
+                      {loading === tier.tier
                         ? 'Loading...'
                         : `Upgrade to ${tier.name}`}
                     </Button>
