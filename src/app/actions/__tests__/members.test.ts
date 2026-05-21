@@ -5,9 +5,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ---------------------------------------------------------------------------
 
 const getAuthContext = vi.fn();
+const getAuthUser = vi.fn();
 vi.mock('@/lib/auth/helpers', () => ({
   getAuthContext: () => getAuthContext(),
+  getAuthUser: () => getAuthUser(),
   WRITE_ROLES: ['owner', 'admin'] as const,
+}));
+
+const sendInvitationEmail = vi.fn();
+vi.mock('@/lib/email/invitation', () => ({
+  sendInvitationEmail: (...args: unknown[]) => sendInvitationEmail(...args),
 }));
 
 const actionCheck = vi.fn();
@@ -20,6 +27,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/lib/db/schema', () => ({
   users: { __brand: 'users' },
   orgInvitations: { __brand: 'orgInvitations' },
+  organizations: { __brand: 'organizations' },
 }));
 
 vi.mock('drizzle-orm', () => ({
@@ -49,8 +57,8 @@ function makeSelectChain() {
   return thenable;
 }
 
-vi.mock('@/lib/db', () => ({
-  db: {
+vi.mock('@/lib/db', () => {
+  const dbMock: Record<string, unknown> = {
     select: () => ({
       from: () => makeSelectChain(),
     }),
@@ -69,8 +77,10 @@ vi.mock('@/lib/db', () => ({
         },
       }),
     }),
-  },
-}));
+  };
+  dbMock.transaction = async (fn: (tx: typeof dbMock) => Promise<unknown>) => fn(dbMock);
+  return { db: dbMock };
+});
 
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
@@ -82,6 +92,8 @@ const {
   cancelInvitation,
   updateMemberRole,
   removeMember,
+  acceptInvitation,
+  getInvitationForAccept,
 } = await import('../members');
 
 // ---------------------------------------------------------------------------
@@ -95,6 +107,8 @@ const CTX = (role: 'owner' | 'admin' | 'member' = 'admin', orgId = 'org-1', user
 
 beforeEach(() => {
   getAuthContext.mockReset();
+  getAuthUser.mockReset();
+  sendInvitationEmail.mockReset();
   actionCheck.mockReset().mockResolvedValue({ success: true, remaining: 9 });
   updateMock.mockReset();
   insertMock.mockReset();
@@ -356,5 +370,112 @@ describe('removeMember', () => {
       expect.objectContaining({ __brand: 'users' }),
       expect.objectContaining({ organizationId: null, role: 'member' }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getInvitationForAccept
+// ---------------------------------------------------------------------------
+
+const VALID_INVITE_ID = '11111111-1111-4111-8111-111111111111';
+
+describe('getInvitationForAccept', () => {
+  it('returns not_found for an invalid invitation id', async () => {
+    expect(await getInvitationForAccept('not-a-uuid')).toEqual({ error: 'not_found' });
+  });
+
+  it('returns not_found when the invitation does not exist', async () => {
+    selectQueue.push([]);
+    expect(await getInvitationForAccept(VALID_INVITE_ID)).toEqual({ error: 'not_found' });
+  });
+
+  it('returns a pending invitation with the org name', async () => {
+    const future = new Date(Date.now() + 7 * 86400000);
+    selectQueue.push([{ id: VALID_INVITE_ID, email: 'x@test.com', role: 'member', status: 'pending', expiresAt: future, organizationId: 'org-1' }]);
+    selectQueue.push([{ name: 'Acme Corp' }]);
+    expect(await getInvitationForAccept(VALID_INVITE_ID)).toEqual({
+      invitation: { id: VALID_INVITE_ID, email: 'x@test.com', role: 'member', orgName: 'Acme Corp', state: 'pending' },
+    });
+  });
+
+  it('reports an expired state when a pending invitation is past its expiry', async () => {
+    const past = new Date(Date.now() - 86400000);
+    selectQueue.push([{ id: VALID_INVITE_ID, email: 'x@test.com', role: 'member', status: 'pending', expiresAt: past, organizationId: 'org-1' }]);
+    selectQueue.push([{ name: 'Acme Corp' }]);
+    expect(await getInvitationForAccept(VALID_INVITE_ID)).toMatchObject({ invitation: { state: 'expired' } });
+  });
+
+  it('reports an accepted state for an already-accepted invitation', async () => {
+    const future = new Date(Date.now() + 86400000);
+    selectQueue.push([{ id: VALID_INVITE_ID, email: 'x@test.com', role: 'member', status: 'accepted', expiresAt: future, organizationId: 'org-1' }]);
+    selectQueue.push([{ name: 'Acme Corp' }]);
+    expect(await getInvitationForAccept(VALID_INVITE_ID)).toMatchObject({ invitation: { state: 'accepted' } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// acceptInvitation
+// ---------------------------------------------------------------------------
+
+describe('acceptInvitation', () => {
+  it('requires the user to be signed in', async () => {
+    getAuthUser.mockResolvedValue(null);
+    expect(await acceptInvitation(VALID_INVITE_ID)).toEqual({
+      error: 'You must be signed in to accept an invitation',
+    });
+  });
+
+  it('rejects an invalid invitation id', async () => {
+    getAuthUser.mockResolvedValue({ id: 'u1', email: 'x@test.com' });
+    expect(await acceptInvitation('not-a-uuid')).toEqual({ error: 'Invitation not found' });
+  });
+
+  it('returns not found when the invitation does not exist', async () => {
+    getAuthUser.mockResolvedValue({ id: 'u1', email: 'x@test.com' });
+    selectQueue.push([]);
+    expect(await acceptInvitation(VALID_INVITE_ID)).toEqual({ error: 'Invitation not found' });
+  });
+
+  it('rejects an invitation that is no longer pending', async () => {
+    getAuthUser.mockResolvedValue({ id: 'u1', email: 'x@test.com' });
+    selectQueue.push([{ id: VALID_INVITE_ID, email: 'x@test.com', role: 'member', status: 'accepted', expiresAt: new Date(Date.now() + 86400000), organizationId: 'org-1' }]);
+    expect(await acceptInvitation(VALID_INVITE_ID)).toEqual({ error: 'This invitation is no longer valid' });
+  });
+
+  it('rejects an expired invitation', async () => {
+    getAuthUser.mockResolvedValue({ id: 'u1', email: 'x@test.com' });
+    selectQueue.push([{ id: VALID_INVITE_ID, email: 'x@test.com', role: 'member', status: 'pending', expiresAt: new Date(Date.now() - 86400000), organizationId: 'org-1' }]);
+    expect(await acceptInvitation(VALID_INVITE_ID)).toEqual({ error: 'This invitation has expired' });
+  });
+
+  it('rejects when the signed-in email does not match the invitation', async () => {
+    getAuthUser.mockResolvedValue({ id: 'u1', email: 'other@test.com' });
+    selectQueue.push([{ id: VALID_INVITE_ID, email: 'invited@test.com', role: 'member', status: 'pending', expiresAt: new Date(Date.now() + 86400000), organizationId: 'org-1' }]);
+    expect(await acceptInvitation(VALID_INVITE_ID)).toEqual({
+      error: 'This invitation was sent to a different email address',
+    });
+  });
+
+  it('joins an existing user to the org and marks the invitation accepted', async () => {
+    getAuthUser.mockResolvedValue({ id: 'u1', email: 'Invited@test.com' });
+    selectQueue.push([{ id: VALID_INVITE_ID, email: 'invited@test.com', role: 'admin', status: 'pending', expiresAt: new Date(Date.now() + 86400000), organizationId: 'org-9' }]);
+    selectQueue.push([{ id: 'u1' }]); // existing users row found inside the transaction
+    expect(await acceptInvitation(VALID_INVITE_ID)).toEqual({ success: true });
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ __brand: 'users' }),
+      expect.objectContaining({ organizationId: 'org-9', role: 'admin' }),
+    );
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ __brand: 'orgInvitations' }),
+      expect.objectContaining({ status: 'accepted' }),
+    );
+  });
+
+  it('creates a users row when the invitee has none yet', async () => {
+    getAuthUser.mockResolvedValue({ id: 'u-new', email: 'invited@test.com', user_metadata: { full_name: 'New Person' } });
+    selectQueue.push([{ id: VALID_INVITE_ID, email: 'invited@test.com', role: 'member', status: 'pending', expiresAt: new Date(Date.now() + 86400000), organizationId: 'org-9' }]);
+    selectQueue.push([]); // no existing users row
+    expect(await acceptInvitation(VALID_INVITE_ID)).toEqual({ success: true });
+    expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({ __brand: 'users' }));
   });
 });

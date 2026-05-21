@@ -84,7 +84,11 @@ export function OrgMembers({
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success(`Invitation sent to ${inviteEmail}`);
+        if (result.emailSent === false) {
+          toast.warning(`Invitation created, but the email to ${inviteEmail} could not be sent.`);
+        } else {
+          toast.success(`Invitation sent to ${inviteEmail}`);
+        }
         setInviteEmail('');
         setInviteRole('member');
         if (result.invitation) {
