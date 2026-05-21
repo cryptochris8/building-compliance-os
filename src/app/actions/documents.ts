@@ -14,7 +14,8 @@ import { actionLimiter } from '@/lib/rate-limit';
 // Zod Validation Schema for Document Upload
 // ============================================================
 
-export const documentFormSchema = z.object({
+// Not exported — a "use server" file may only export async functions.
+const documentFormSchema = z.object({
   buildingId: z.string().min(1, 'Building ID is required'),
   fileName: z.string().min(1, 'File name is required'),
   fileType: z.string().min(1, 'File type is required'),
@@ -24,7 +25,7 @@ export const documentFormSchema = z.object({
   filePath: z.string().min(1, 'File path is required'),
 });
 
-export type DocumentFormValues = z.infer<typeof documentFormSchema>;
+type DocumentFormValues = z.infer<typeof documentFormSchema>;
 
 // ============================================================
 // Upload Document (create metadata record)

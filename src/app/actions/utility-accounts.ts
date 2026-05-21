@@ -8,14 +8,15 @@ import { revalidatePath } from 'next/cache';
 import { getAuthContext, assertBuildingAccess, WRITE_ROLES } from '@/lib/auth/helpers';
 import { actionLimiter } from '@/lib/rate-limit';
 
-export const utilityAccountSchema = z.object({
+// Not exported — a "use server" file may only export async functions.
+const utilityAccountSchema = z.object({
   buildingId: z.string().min(1),
   utilityType: z.enum(['electricity', 'natural_gas', 'district_steam', 'fuel_oil_2', 'fuel_oil_4']),
   accountNumber: z.string().optional(),
   providerName: z.string().optional(),
 });
 
-export type UtilityAccountFormValues = z.infer<typeof utilityAccountSchema>;
+type UtilityAccountFormValues = z.infer<typeof utilityAccountSchema>;
 
 export async function getUtilityAccountsForBuilding(buildingId: string) {
   const access = await assertBuildingAccess(buildingId);

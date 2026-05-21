@@ -116,8 +116,9 @@ export function DocumentUpload({ buildingId, onUploadComplete }: DocumentUploadP
       }
     } catch (err) {
       console.error('Document upload error:', err);
-      setError("Upload failed. Please try again.");
-      toast.error("Upload failed. Please try again.");
+      const msg = err instanceof Error ? err.message : "Upload failed. Please try again.";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setUploading(false);
     }

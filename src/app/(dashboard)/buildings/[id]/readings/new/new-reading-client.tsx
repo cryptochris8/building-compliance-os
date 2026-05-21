@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ReadingForm } from "@/components/readings/reading-form";
-import { createReading, type ReadingFormValues } from "@/app/actions/readings";
+import { createReading } from "@/app/actions/readings";
+import type { ReadingFormValues } from "@/app/actions/readings.schema";
 import { getUtilityAccountsForBuilding } from "@/app/actions/utility-accounts";
 import { toast } from "sonner";
 

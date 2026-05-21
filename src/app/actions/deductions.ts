@@ -28,7 +28,8 @@ async function updateDeductionTotals(complianceYearId: string, tx: TxClient) {
   }).where(eq(complianceYears.id, complianceYearId));
 }
 
-export const deductionFormSchema = z.object({
+// Not exported — a "use server" file may only export async functions.
+const deductionFormSchema = z.object({
   buildingId: z.string().min(1),
   complianceYearId: z.string().min(1),
   deductionType: z.enum(['purchased_recs', 'onsite_renewables', 'community_dg', 'other']),
@@ -37,7 +38,7 @@ export const deductionFormSchema = z.object({
   documentationId: z.string().optional(),
 });
 
-export type DeductionFormValues = z.infer<typeof deductionFormSchema>;
+type DeductionFormValues = z.infer<typeof deductionFormSchema>;
 
 export async function createDeduction(data: DeductionFormValues) {
   const ctx = await getAuthContext();

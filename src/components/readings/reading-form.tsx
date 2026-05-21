@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { readingFormSchema, type ReadingFormValues } from "@/app/actions/readings";
+import { readingFormSchema, type ReadingFormValues } from "@/app/actions/readings.schema";
 
 interface UtilityAccountOption {
   id: string;
