@@ -154,6 +154,14 @@ export const glossaryTerms: GlossaryTerm[] = [
     definition:
       "EPA ENERGY STAR Portfolio Manager — the free online tool for tracking building energy and water. Compliance OS can sync monthly readings directly from a Portfolio Manager account, avoiding manual entry.",
   },
+  {
+    id: 'rdp',
+    label: 'RDP',
+    category: 'concepts',
+    definition:
+      "Registered Design Professional — a New York State–licensed Professional Engineer (PE) or Registered Architect (RA). LL97 requires a building's annual emissions report to be certified by an RDP, who attests under their professional license that the data and calculations are accurate before the owner files it with the Department of Buildings.",
+    example: 'Compliance OS prepares the report, but a PE or RA must review and sign it as the RDP before it can be submitted.',
+  },
 ];
 
 const termIndex = new Map(glossaryTerms.map((term) => [term.id, term]));
